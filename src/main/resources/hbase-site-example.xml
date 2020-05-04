@@ -1,0 +1,22 @@
+<configuration>
+    <property>
+        <name>hbase.rootdir</name>
+        <value>maprfs:///hbase</value>
+    </property>
+
+    <property>
+        <name>hbase.cluster.distributed</name>
+        <value>true</value>
+    </property>
+
+    <property>
+        <name>hbase.zookeeper.quorum</name>
+        <value>ion-node-01.infocom.local,ion-node-02.infocom.local,ion-node-03.infocom.local</value>
+    </property>
+
+    <property>
+        <name>hbase.zookeeper.property.clientPort</name>
+        <value>5181</value>
+    </property>
+
+</configuration>

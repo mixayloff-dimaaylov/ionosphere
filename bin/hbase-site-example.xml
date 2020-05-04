@@ -1,0 +1,6 @@
+<configuration>
+    <property>
+        <name>hbase.zookeeper.quorum</name>
+        <value>hadoop-01,hadoop-02,hadoop-03</value>
+    </property>
+</configuration>
