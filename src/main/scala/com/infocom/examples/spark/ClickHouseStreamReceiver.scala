@@ -17,7 +17,15 @@ import scala.reflect._
 object StreamReceiver {
   def main(args: Array[String]): Unit = {
     if (args.length < 2) {
-      System.out.println("Provide Kafka server and ClickHouse addresses as application parameters")
+      System.out.println("Wrong arguments")
+      printHelp()
+      System.exit(1)
+    }
+
+    if (args.length > 2) {
+      System.out.println("Extra arguments")
+      printHelp()
+      System.exit(1)
     }
 
     val kafkaServerAddress = args(0)
@@ -67,24 +75,6 @@ object StreamReceiver {
       _.toDF.write.mode("append").jdbc(jdbcUri, "rawdata.range", jdbcProps)
     }
 
-    // ISMREDOBS
-
-    createKafkaStream[DataPointIsmredobs]("datapoint-raw-ismredobs") map toRow foreachRDD {
-      _.toDF.write.mode("append").jdbc(jdbcUri, "rawdata.ismredobs", jdbcProps)
-    }
-
-    // ISMDETOBS
-
-    createKafkaStream[DataPointIsmdetobs]("datapoint-raw-ismdetobs") map toRow foreachRDD {
-      _.toDF.write.mode("append").jdbc(jdbcUri, "rawdata.ismdetobs", jdbcProps)
-    }
-
-    // ISMRAWTEC
-
-    createKafkaStream[DataPointIsmrawtec]("datapoint-raw-ismrawtec") map toRow foreachRDD {
-      _.toDF.write.mode("append").jdbc(jdbcUri, "rawdata.ismrawtec", jdbcProps)
-    }
-
     // SATXYZ2
 
     createKafkaStream[DataPointSatxyz2]("datapoint-raw-satxyz2") map toRow foreachRDD {
@@ -94,5 +84,14 @@ object StreamReceiver {
     ssc.start()
     ssc.awaitTermination()
     spark.close()
+  }
+
+  def printHelp(): Unit = {
+    val usagestr = """
+    Usage: <progname> <kafka_server> <clickhouse_server>
+    <kafka_server>        - Kafka server address:port, (string)
+    <clickhouse_server>   - ClickHouse server (HTTP-interface) address:port, (string)
+    """
+    System.out.println(usagestr)
   }
 }

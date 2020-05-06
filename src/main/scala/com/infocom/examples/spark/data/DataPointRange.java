@@ -14,6 +14,7 @@ public class DataPointRange {
     public double Psr;
     public double Adr;
     public double CNo;
+    public double LockTime;
     public double Power;
 
     @Override

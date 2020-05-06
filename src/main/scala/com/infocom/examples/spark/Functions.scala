@@ -20,7 +20,7 @@ import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions.udf
 import scala.math._
 
-object Functions {
+object Functions extends Serializable {
   val LARGE_WINDOW_SIZE = 30000L
   val SMALL_WINDOW_SIZE = 40L
   val K_SET_SIZE = 3000

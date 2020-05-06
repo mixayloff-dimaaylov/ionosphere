@@ -10,6 +10,18 @@ import org.apache.spark.SparkConf
 
 object RangeCalculations {
   def main(args: Array[String]): Unit = {
+    if (args.length < 3) {
+      System.out.println("Wrong arguments")
+      printHelp()
+      System.exit(1)
+    }
+
+    if (args.length > 3) {
+      System.out.println("Extra arguments")
+      printHelp()
+      System.exit(1)
+    }
+
     val conf = new SparkConf().setAppName("Range Calculations")
     val master = conf.getOption("spark.master")
 
@@ -53,11 +65,11 @@ object RangeCalculations {
           |  sat
           |FROM
           |  rawdata.range
+          |WHERE
+          |  sat='$sat' AND d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
           |GROUP BY
           |  time,
           |  sat
-          |WHERE
-          |  sat='$sat' AND d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
           |HAVING
           |  has(groupArray(freq) AS f, 'L1')
           |  AND has(f, 'L2')
@@ -93,5 +105,15 @@ object RangeCalculations {
 
     computed.write.mode("append").jdbc(jdbcUri, "computed.range", jdbcProps)
     spark.close()
+  }
+
+  def printHelp(): Unit = {
+    val usagestr = """
+    Usage: <progname> <from> <to> <sat>
+    <from> - start of the time range, (uint in ms)
+    <to>   - end of the time range, (uint ms)
+    <sat>  - name of satellite (string)
+    """
+    System.out.println(usagestr)
   }
 }
