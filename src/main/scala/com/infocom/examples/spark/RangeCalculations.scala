@@ -8,6 +8,7 @@ import java.util.Properties
 
 import org.apache.spark.SparkConf
 
+//noinspection ScalaStyle
 object RangeCalculations {
   def main(args: Array[String]): Unit = {
     if (args.length < 3) {

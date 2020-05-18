@@ -31,6 +31,22 @@ object Functions extends Serializable {
     (time: Long) => time
   }
 
+  def f(freq: String): UserDefinedFunction = udf {
+    (system: String, glofreq: Int) =>
+      freq match {
+        case "L1CA" => system match {
+          case "GLONASS" => 1602.0e6 + glofreq * 0.5625e6
+          case "GPS" => 1575.42e6
+          case _ => 0
+        }
+        case "L2CA" => 1246.0e6 + glofreq * 0.4375e6
+        case "L2C" => 1227.60e6
+        case "L2P" => 1227.60e6
+        case "L5Q" => 1176.45e6
+        case _ => 0
+      }
+  }
+
   def f1: UserDefinedFunction = udf {
     (system: String, glofreq: Int) =>
       system match {
@@ -53,6 +69,16 @@ object Functions extends Serializable {
 
   def k: UserDefinedFunction = udf {
     (adr1: Double, adr2: Double, f1: Double, f2: Double, psr1: Double, psr2: Double) => (adr1 * waveLength(f1) - adr2 * waveLength(f2)) - (psr1 - psr2)
+  }
+
+  def dnt: UserDefinedFunction = udf {
+    (f1: Double, f2: Double, K: Double) =>
+    {
+      val f1_2 = f1 * f1
+      val f2_2 = f2 * f2
+
+      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * K
+    }
   }
 
   def nt: UserDefinedFunction = udf {
