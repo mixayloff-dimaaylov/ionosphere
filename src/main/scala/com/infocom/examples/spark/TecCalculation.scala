@@ -58,6 +58,7 @@ object TecCalculation {
     )
 
     range.collect().foreach(row => runJobNt(spark, from, to, row(0).toString, row(1).toString))
+    range.select("sat").dropDuplicates().collect().foreach(row => runJobS4(spark, from, to, row(0).toString))
   }
 
   def runJobNt(spark: SparkSession, from: Long, to: Long, sat: String, f2Name: String): Unit = {
@@ -127,7 +128,52 @@ object TecCalculation {
     tecRange.write.mode("append").jdbc(jdbcUri, "computed.NT", jdbcProps)
   }
 
+  def runJobS4(spark: SparkSession, from: Long, to: Long, sat: String): Unit = {
+    println(s"S4 for $sat")
 
+    val sc = spark.sqlContext
+
+    val jdbcUri = s"jdbc:clickhouse://st9-ape-ionosphere2s-1:8123"
+    @transient val jdbcProps = new Properties()
+    jdbcProps.setProperty("isolationLevel", "NONE")
+
+    val result = sc.read.jdbc(
+      jdbcUri,
+      s"""
+         |(
+         |SELECT
+         |  toUInt64(floor(time/1000,0)*1000) as time1s,
+         |  sat,
+         |  freq,
+         |  sqrt((avg(pow(exp10(cno/10),2)) - pow(avg(exp10(cno/10)),2)) / pow(avg(exp10(cno/10)),2)) as S4
+         |FROM
+         |  rawdata.range
+         |WHERE
+         |  sat='$sat' AND d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
+         |GROUP BY
+         |  floor(time/1000,0),
+         |  sat,
+         |  freq
+         |ORDER BY
+         |  floor(time/1000,0)
+         |)
+        """.stripMargin,
+      jdbcProps
+    )
+
+    //CREATE TABLE computed.s4 (
+    //  time UInt64,
+    //  sat String,
+    //  freq String,
+    //  s4 Float64,
+    //  d Date MATERIALIZED toDate(round(time / 1000))
+    //) ENGINE = ReplacingMergeTree(d, (time, sat, freq), 8192)
+
+    result
+      .withColumnRenamed("time1s", "time")
+      .select("time", "sat", "freq", "s4")
+      .write.mode("append").jdbc(jdbcUri, "computed.s4", jdbcProps)
+  }
 
   def printHelp(): Unit = {
     val usagestr =
