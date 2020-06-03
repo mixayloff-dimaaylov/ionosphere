@@ -70,9 +70,9 @@ object TecCalculation extends Serializable {
     range.collect().foreach(row => {
       val sigComb = runJobNt(spark, from, to, row(0).toString, row(1).toString)
       runJobDerivatives(spark, from, to, row(0).toString, sigComb)
-      runJobXz1(spark, from, to, row(0).toString, sigComb)
     })
-    range.select("sat").dropDuplicates().collect().foreach(row => runJobS4(spark, from, to, row(0).toString))
+    runJobXz1(spark, from, to)
+    runJobS4(spark, from, to)
   }
 
   def runJobNt(spark: SparkSession, from: Long, to: Long, sat: String, f2Name: String): String = {
@@ -155,8 +155,8 @@ object TecCalculation extends Serializable {
     sigcomb
   }
 
-  def runJobS4(spark: SparkSession, from: Long, to: Long, sat: String): Unit = {
-    println(s"S4 for $sat")
+  def runJobS4(spark: SparkSession, from: Long, to: Long): Unit = {
+    println(s"S4")
 
     val sc = spark.sqlContext
 
@@ -176,13 +176,11 @@ object TecCalculation extends Serializable {
          |FROM
          |  rawdata.range
          |WHERE
-         |  sat='$sat' AND d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
+         |  d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
          |GROUP BY
          |  floor(time/1000,0),
          |  sat,
          |  freq
-         |ORDER BY
-         |  floor(time/1000,0)
          |)
         """.stripMargin,
       jdbcProps
@@ -327,8 +325,8 @@ object TecCalculation extends Serializable {
     (b, bInputSeq).zipped.map((x, y) => x * y).sum - (a, aInputSeq).zipped.map((x, y) => x * y).sum
   }
 
-  def runJobXz1(spark: SparkSession, from: Long, to: Long, sat: String, sigcomb: String): Unit = {
-    println(s"Xz1 for $sat & $sigcomb")
+  def runJobXz1(spark: SparkSession, from: Long, to: Long): Unit = {
+    println(s"Xz1")
 
     val sc = spark.sqlContext
     import spark.implicits._
@@ -351,14 +349,11 @@ object TecCalculation extends Serializable {
          |FROM
          |	computed.NTDerivatives
          |WHERE
-         |  sat='$sat' AND d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
-         |  and sigcomb='$sigcomb'
+         |  d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
          |GROUP BY
          |  floor(NTDerivatives.time/1000,0),
          |  sat,
          |  sigcomb
-         |ORDER BY
-         |  floor(NTDerivatives.time/1000,0)
          |)
         """.stripMargin,
       jdbcProps
@@ -405,7 +400,7 @@ object TecCalculation extends Serializable {
    * @return
    */
   def sigPhi(sigNT: Double, f: Double): Double = {
-    80.8 * math.Pi * sigNT / (Functions.C * f)
+    10e16 * 80.8 * math.Pi * sigNT / (Functions.C * f)
   }
 
   /**
