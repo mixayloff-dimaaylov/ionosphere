@@ -9,6 +9,9 @@ import org.apache.spark.sql.functions._
 
 //noinspection ScalaStyle
 object TecCalculation extends Serializable {
+  @transient val jdbcUri = s"jdbc:clickhouse://st9-ape-ionosphere2s-1:8123"
+  @transient val jdbcProps = new Properties()
+
   def main(args: Array[String]): Unit = {
     if (args.length != 2) {
       System.out.println("Wrong arguments")
@@ -17,7 +20,10 @@ object TecCalculation extends Serializable {
     }
 
     val now = (new java.util.Date).getTime
-    val from = now - (args(0).toLong * 3600 * 1000)
+    val from = now - (args(0).toLong)
+
+    jdbcProps.setProperty("isolationLevel", "NONE")
+    jdbcProps.setProperty("numPartitions", "1")
 
     println(s"from $from to $now")
 
@@ -27,7 +33,7 @@ object TecCalculation extends Serializable {
   }
 
   private def getOrCreateSession(name: String): SparkSession = {
-    val conf = new SparkConf().setAppName(name)
+    val conf = new SparkConf().setAppName(name).set("spark.sql.allowMultipleContexts", "false")
     val master = conf.getOption("spark.master")
 
     if (master.isEmpty) {
@@ -39,10 +45,6 @@ object TecCalculation extends Serializable {
 
   def runJob(spark: SparkSession, from: Long, to: Long, sat: String): Unit = {
     val sc = spark.sqlContext
-
-    val jdbcUri = s"jdbc:clickhouse://st9-ape-ionosphere2s-1:8123"
-    @transient val jdbcProps = new Properties()
-    jdbcProps.setProperty("isolationLevel", "NONE")
 
     val range = sc.read.jdbc(
       jdbcUri,
@@ -56,7 +58,7 @@ object TecCalculation extends Serializable {
          |where
          |  d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
          |  and freq in('L2CA', 'L2C', 'L2P', 'L5Q')
-         |  and sat = '$sat'
+//         |  and sat = '$sat'
          |group by
          |  sat,
          |  freq
@@ -82,11 +84,6 @@ object TecCalculation extends Serializable {
 
     val sc = spark.sqlContext
     import spark.implicits._
-
-    val jdbcUri = s"jdbc:clickhouse://st9-ape-ionosphere2s-1:8123"
-    @transient val jdbcProps = new Properties()
-    jdbcProps.setProperty("isolationLevel", "NONE")
-
 
     val range = sc.read.jdbc(
       jdbcUri,
@@ -160,10 +157,6 @@ object TecCalculation extends Serializable {
 
     val sc = spark.sqlContext
 
-    val jdbcUri = s"jdbc:clickhouse://st9-ape-ionosphere2s-1:8123"
-    @transient val jdbcProps = new Properties()
-    jdbcProps.setProperty("isolationLevel", "NONE")
-
     val result = sc.read.jdbc(
       jdbcUri,
       s"""
@@ -206,10 +199,6 @@ object TecCalculation extends Serializable {
 
     val sc = spark.sqlContext
     import spark.implicits._
-
-    val jdbcUri = s"jdbc:clickhouse://st9-ape-ionosphere2s-1:8123"
-    @transient val jdbcProps = new Properties()
-    jdbcProps.setProperty("isolationLevel", "NONE")
 
     val rawData = sc.read.jdbc(
       jdbcUri,
@@ -330,10 +319,6 @@ object TecCalculation extends Serializable {
 
     val sc = spark.sqlContext
     import spark.implicits._
-
-    val jdbcUri = s"jdbc:clickhouse://st9-ape-ionosphere2s-1:8123"
-    @transient val jdbcProps = new Properties()
-    jdbcProps.setProperty("isolationLevel", "NONE")
 
     val rawData = sc.read.jdbc(
       jdbcUri,
