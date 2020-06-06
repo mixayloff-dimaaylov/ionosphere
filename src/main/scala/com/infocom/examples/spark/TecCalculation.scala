@@ -1,9 +1,12 @@
 package com.infocom.examples.spark
 
 import java.util.Properties
+
 import org.apache.spark.SparkConf
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
+
+import scala.collection.mutable
 
 object NtFunctions extends Serializable {
   /**
@@ -146,6 +149,9 @@ object SigNtFunctions extends Serializable {
 object TecCalculation extends Serializable {
   @transient val jdbcUri = s"jdbc:clickhouse://st9-ape-ionosphere2s-1:8123"
   @transient val jdbcProps = new Properties()
+  @transient private val NTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
+  @transient private val avgNTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
+  @transient private val delNTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
 
   {
     jdbcProps.setProperty("isolationLevel", "NONE")
@@ -163,7 +169,7 @@ object TecCalculation extends Serializable {
     println("v 20200606")
 
     val now = (new java.util.Date).getTime
-    val from = now - (args(0).toLong)
+    val from = now - args(0).toLong
 
     mainJob(from, now)
   }
@@ -182,8 +188,8 @@ object TecCalculation extends Serializable {
     //Возьмем время минуту назад как начальная инициализация
     var from = new java.util.Date().getTime / 1000 * 1000 - 60000
     while (true) {
-      //Сделаем отставание в 10 секунд, что бы БД успела обработать все
-      val to = new java.util.Date().getTime / 1000 * 1000 - 10000
+      //Сделаем отставание в 20 секунд, что бы БД успела обработать все
+      val to = new java.util.Date().getTime / 1000 * 1000 - 20000
       mainJob(from, to)
       from = to + 1
       println(s"sleep $repeat ms")
@@ -376,16 +382,26 @@ object TecCalculation extends Serializable {
     val time = rawData.select("time").map(r => r.getDecimal(0)).collect().toSeq
     val nt = rawData.select("nt").map(r => r.getDouble(0)).collect().toSeq
 
-    val avgNTSeq = scala.collection.mutable.Seq.fill[Double](nt.length)(0)
-    val delNtSeq = scala.collection.mutable.Seq.fill[Double](nt.length)(0)
-    for (i <- 6 until nt.length) {
-      val nt7 = Seq(nt(i), nt(i - 1), nt(i - 2), nt(i - 3), nt(i - 4), nt(i - 5), nt(i - 6))
+    val filterOrder = 6
+    val zero : Double = 0;
+
+    val zeroSeq = mutable.Seq.fill[Double](filterOrder)(zero)
+    val NTSeq = NTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder, zero) ++ nt
+    val avgNTSeq = avgNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
+    val delNtSeq = delNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
+
+    for (i <- 6 until NTSeq.length) {
+      val nt7 = Seq(NTSeq(i), NTSeq(i - 1), NTSeq(i - 2), NTSeq(i - 3), NTSeq(i - 4), NTSeq(i - 5), NTSeq(i - 6))
 
       avgNTSeq(i) = DigitalFilters.avgNt(nt7, Seq(avgNTSeq(i - 1), avgNTSeq(i - 2), avgNTSeq(i - 3), avgNTSeq(i - 4), avgNTSeq(i - 5), avgNTSeq(i - 6)))
       delNtSeq(i) = DigitalFilters.delNt(nt7, Seq(delNtSeq(i - 1), delNtSeq(i - 2), delNtSeq(i - 3), delNtSeq(i - 4), delNtSeq(i - 5), delNtSeq(i - 6)))
     }
 
-    val df = (time, avgNTSeq, delNtSeq).zipped.toSeq.toDF("time", "avgNT", "delNT")
+    NTMap((sat, sigcomb)) = NTSeq.takeRight(filterOrder)
+    avgNTMap((sat, sigcomb)) = avgNTSeq.takeRight(filterOrder)
+    delNTMap((sat, sigcomb)) = delNtSeq.takeRight(filterOrder)
+
+    val df = (time, avgNTSeq.drop(filterOrder), delNtSeq.drop(filterOrder)).zipped.toSeq.toDF("time", "avgNT", "delNT")
     //df.show
 
     val result = rawData.join(df, Seq("time")).orderBy("time")
