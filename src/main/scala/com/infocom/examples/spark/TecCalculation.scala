@@ -1,35 +1,194 @@
 package com.infocom.examples.spark
 
 import java.util.Properties
-
-import com.infocom.examples.spark.Functions._
 import org.apache.spark.SparkConf
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
+
+object NtFunctions extends Serializable {
+  /**
+   * Скорость света
+   */
+  val C = 299792458.0
+
+  import org.apache.spark.sql.expressions.UserDefinedFunction
+
+  /**
+   * Частота волны для сигнала
+   */
+  def f(freq: String): UserDefinedFunction = udf {
+    (system: String, glofreq: Int) =>
+      freq match {
+        case "L1CA" => system match {
+          case "GLONASS" => 1602.0e6 + glofreq * 0.5625e6
+          case "GPS" => 1575.42e6
+          case _ => 0
+        }
+        case "L2CA" => 1246.0e6 + glofreq * 0.4375e6
+        case "L2C" => 1227.60e6
+        case "L2P" => 1227.60e6
+        case "L5Q" => 1176.45e6
+        case _ => 0
+      }
+  }
+
+  def waveLength(f: Double): Double = C / f
+
+  /**
+   * ПЭС без поправок
+   */
+  def rawNt: UserDefinedFunction = udf {
+    (l1: Double, l2: Double, f1: Double, f2: Double) => {
+      val f1_2 = f1 * f1
+      val f2_2 = f2 * f2
+
+      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (l1 * waveLength(f1) - l2 * waveLength(f2))
+    }
+  }
+}
+
+object DigitalFilters extends Serializable {
+  def avgNt(nt: Seq[Double], avgNt: Seq[Double]): Double = {
+    val b = Seq(
+      0.00000004863987500780838,
+      0.00000029183925004685027,
+      0.00000072959812511712565,
+      0.00000097279750015616753,
+      0.00000072959812511712565,
+      0.00000029183925004685027,
+      0.00000004863987500780838
+    )
+
+    val a = Seq(
+      -5.5145351211661655,
+      12.689113056515138,
+      -15.593635210704097,
+      10.793296670485379,
+      -3.9893594042308829,
+      0.6151231220526282
+    )
+
+    butterworthFilter(b, a, nt, avgNt)
+  }
+
+  def delNt(nt: Seq[Double], delNt: Seq[Double]): Double = {
+    val b = Seq(
+      0.076745906902313671,
+      0,
+      -0.23023772070694101,
+      0,
+      0.23023772070694101,
+      0,
+      -0.076745906902313671
+    )
+
+    val a = Seq(
+      -3.4767608600037727,
+      5.0801848641096203,
+      -4.2310052826910152,
+      2.2392861745041328,
+      -0.69437337677433475,
+      0.084273573849621822
+    )
+
+    butterworthFilter(b, a, nt, delNt)
+  }
+
+  private def butterworthFilter(b: Seq[Double], a: Seq[Double], bInputSeq: Seq[Double], aInputSeq: Seq[Double]): Double = {
+    if (b.length != bInputSeq.length) throw
+      new IllegalArgumentException(s"The length of b must be equal to bInputSeq length")
+
+    if (a.length != aInputSeq.length) throw
+      new IllegalArgumentException(s"The length of a must be equal to aInputSeq length")
+
+    (b, bInputSeq).zipped.map((x, y) => x * y).sum - (a, aInputSeq).zipped.map((x, y) => x * y).sum
+  }
+}
+
+object SigNtFunctions extends Serializable {
+  /**
+   * СКО флуктуаций фазы на фазовом экране
+   *
+   */
+  def sigPhi(sigNT: Double, f: Double): Double = {
+    10e16 * 80.8 * math.Pi * sigNT / (NtFunctions.C * f)
+  }
+
+  /**
+   * Расчет параметра Райса (глубины общих замираний)
+   *
+   */
+  def gamma(sigPhi: Double): Double = {
+    1 / math.exp(math.pow(sigPhi, 2) + 1)
+  }
+
+  /**
+   * Расчет интервала частотной корреляции
+   *
+   */
+  //noinspection ScalaStyle
+  def Fc(sigPhi: Double, f: Double): Double = {
+    f / (math.sqrt(2) * sigPhi)
+  }
+
+  /**
+   * Расчет интервала пространственной корреляции
+   *
+   */
+  //noinspection ScalaStyle
+  def Pc(sigPhi: Double): Double = {
+    val Lc = 200 //Средний размер неоднородностей
+    Lc / sigPhi
+  }
+}
 
 //noinspection ScalaStyle
 object TecCalculation extends Serializable {
   @transient val jdbcUri = s"jdbc:clickhouse://st9-ape-ionosphere2s-1:8123"
   @transient val jdbcProps = new Properties()
 
+  {
+    jdbcProps.setProperty("isolationLevel", "NONE")
+    jdbcProps.setProperty("numPartitions", "1")
+  }
+
+
   def main(args: Array[String]): Unit = {
-    if (args.length != 2) {
+    if (args.length != 1) {
       System.out.println("Wrong arguments")
       printHelp()
       System.exit(1)
     }
 
+    println("v 20200606")
+
     val now = (new java.util.Date).getTime
     val from = now - (args(0).toLong)
 
-    jdbcProps.setProperty("isolationLevel", "NONE")
-    jdbcProps.setProperty("numPartitions", "1")
+    mainJob(from, now)
+  }
 
-    println(s"from $from to $now")
+  private def mainJob(from: Long, to: Long): Unit = {
+    val delta = to - from
+    println(s"from $from to $to ($delta ms) ")
 
     val spark = getOrCreateSession("TEC Range Calculations")
-    runJob(spark, from, now, args(1))
+    runJob(spark, from, to)
     spark.close()
+  }
+
+  def Fire(repeat: String): Unit = {
+    // "/ 1000 * 1000" - выравнивание по целым секундам. Для S4 и аналогичным.
+    //Возьмем время минуту назад как начальная инициализация
+    var from = new java.util.Date().getTime / 1000 * 1000 - 60000
+    while (true) {
+      //Сделаем отставание в 10 секунд, что бы БД успела обработать все
+      val to = new java.util.Date().getTime / 1000 * 1000 - 10000
+      mainJob(from, to)
+      from = to + 1
+      println(s"sleep $repeat ms")
+      Thread.sleep(repeat.toLong)
+    }
   }
 
   private def getOrCreateSession(name: String): SparkSession = {
@@ -43,7 +202,7 @@ object TecCalculation extends Serializable {
     SparkSession.builder().config(conf).getOrCreate()
   }
 
-  def runJob(spark: SparkSession, from: Long, to: Long, sat: String): Unit = {
+  def runJob(spark: SparkSession, from: Long, to: Long): Unit = {
     val sc = spark.sqlContext
 
     val range = sc.read.jdbc(
@@ -58,7 +217,6 @@ object TecCalculation extends Serializable {
          |where
          |  d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
          |  and freq in('L2CA', 'L2C', 'L2P', 'L5Q')
-//         |  and sat = '$sat'
          |group by
          |  sat,
          |  freq
@@ -97,7 +255,8 @@ object TecCalculation extends Serializable {
          |  anyIf(psr, freq = '$f1Name') AS psr1,
          |  anyIf(psr, freq = '$f2Name') AS psr2,
          |  any(system) AS system,
-         |  any(glofreq) AS glofreq
+         |  any(glofreq) AS glofreq,
+         |  '$sigcomb' AS sigcomb
          |FROM
          |  rawdata.range
          |WHERE
@@ -116,22 +275,13 @@ object TecCalculation extends Serializable {
         """.stripMargin,
       jdbcProps
     )
-      .withColumn("f1", f(f1Name)($"system", $"glofreq"))
-      .withColumn("f2", f(f2Name)($"system", $"glofreq"))
+      .withColumn("f1", NtFunctions.f(f1Name)($"system", $"glofreq"))
+      .withColumn("f2", NtFunctions.f(f2Name)($"system", $"glofreq"))
 
     //range.show()
 
-    val kLimit = range
-      .limit(K_SET_SIZE)
-      .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")).as("K"))
-
-    //kLimit.show()
-
     val tecRange = range
-      .crossJoin(kLimit)
-      .withColumn("dnt", dnt($"f1", $"f2", $"K"))
-      .withColumn("nt", nt($"adr1", $"adr2", $"f1", $"f2", $"dnt", lit(0)))
-      .withColumn("sigcomb", lit(sigcomb))
+      .withColumn("nt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2"))
       .select("time", "sat", "sigcomb", "f1", "f2", "nt")
 
     //tecRange.show()
@@ -231,8 +381,8 @@ object TecCalculation extends Serializable {
     for (i <- 6 until nt.length) {
       val nt7 = Seq(nt(i), nt(i - 1), nt(i - 2), nt(i - 3), nt(i - 4), nt(i - 5), nt(i - 6))
 
-      avgNTSeq(i) = avgNt(nt7, Seq(avgNTSeq(i - 1), avgNTSeq(i - 2), avgNTSeq(i - 3), avgNTSeq(i - 4), avgNTSeq(i - 5), avgNTSeq(i - 6)))
-      delNtSeq(i) = delNt(nt7, Seq(delNtSeq(i - 1), delNtSeq(i - 2), delNtSeq(i - 3), delNtSeq(i - 4), delNtSeq(i - 5), delNtSeq(i - 6)))
+      avgNTSeq(i) = DigitalFilters.avgNt(nt7, Seq(avgNTSeq(i - 1), avgNTSeq(i - 2), avgNTSeq(i - 3), avgNTSeq(i - 4), avgNTSeq(i - 5), avgNTSeq(i - 6)))
+      delNtSeq(i) = DigitalFilters.delNt(nt7, Seq(delNtSeq(i - 1), delNtSeq(i - 2), delNtSeq(i - 3), delNtSeq(i - 4), delNtSeq(i - 5), delNtSeq(i - 6)))
     }
 
     val df = (time, avgNTSeq, delNtSeq).zipped.toSeq.toDF("time", "avgNT", "delNT")
@@ -256,62 +406,6 @@ object TecCalculation extends Serializable {
     result
       .select("time", "sat", "sigcomb", "f1", "f2", "avgNT", "delNT")
       .write.mode("append").jdbc(jdbcUri, "computed.NTDerivatives", jdbcProps)
-  }
-
-  private def avgNt(nt: Seq[Double], avgNt: Seq[Double]): Double = {
-    val b = Seq(
-      0.00000004863987500780838,
-      0.00000029183925004685027,
-      0.00000072959812511712565,
-      0.00000097279750015616753,
-      0.00000072959812511712565,
-      0.00000029183925004685027,
-      0.00000004863987500780838
-    )
-
-    val a = Seq(
-      -5.5145351211661655,
-      12.689113056515138,
-      -15.593635210704097,
-      10.793296670485379,
-      -3.9893594042308829,
-      0.6151231220526282
-    )
-
-    ButterworthFilter(b, a, nt, avgNt)
-  }
-
-  private def delNt(nt: Seq[Double], delNt: Seq[Double]): Double = {
-    val b = Seq(
-      0.076745906902313671,
-      0,
-      -0.23023772070694101,
-      0,
-      0.23023772070694101,
-      0,
-      -0.076745906902313671
-    )
-
-    val a = Seq(
-      -3.4767608600037727,
-      5.0801848641096203,
-      -4.2310052826910152,
-      2.2392861745041328,
-      -0.69437337677433475,
-      0.084273573849621822
-    )
-
-    ButterworthFilter(b, a, nt, delNt)
-  }
-
-  private def ButterworthFilter(b: Seq[Double], a: Seq[Double], bInputSeq: Seq[Double], aInputSeq: Seq[Double]): Double = {
-    if (b.length != bInputSeq.length) throw
-      new IllegalArgumentException(s"The length of b must be equal to bInputSeq length")
-
-    if (a.length != aInputSeq.length) throw
-      new IllegalArgumentException(s"The length of a must be equal to aInputSeq length")
-
-    (b, bInputSeq).zipped.map((x, y) => x * y).sum - (a, aInputSeq).zipped.map((x, y) => x * y).sum
   }
 
   def runJobXz1(spark: SparkSession, from: Long, to: Long): Unit = {
@@ -344,10 +438,10 @@ object TecCalculation extends Serializable {
       jdbcProps
     )
 
-    val uSigPhi = udf(sigPhi _)
-    val uGamma = udf(gamma _)
-    val uFc = udf(Fc _)
-    val uPc = udf(Pc _)
+    val uSigPhi = udf(SigNtFunctions.sigPhi _)
+    val uGamma = udf(SigNtFunctions.gamma _)
+    val uFc = udf(SigNtFunctions.Fc _)
+    val uPc = udf(SigNtFunctions.Pc _)
 
     val result = rawData
       .withColumn("sigPhi", uSigPhi($"sigNT", $"f1"))
@@ -377,54 +471,12 @@ object TecCalculation extends Serializable {
       .write.mode("append").jdbc(jdbcUri, "computed.xz1", jdbcProps)
   }
 
-  /**
-   * СКО флуктуаций фазы на фазовом экране
-   *
-   * @param sigNT
-   * @param f
-   * @return
-   */
-  def sigPhi(sigNT: Double, f: Double): Double = {
-    10e16 * 80.8 * math.Pi * sigNT / (Functions.C * f)
-  }
-
-  /**
-   * Расчет параметра Райса (глубины общих замираний)
-   *
-   * @param sigPhi
-   * @return
-   */
-  def gamma(sigPhi: Double): Double = {
-    1 / math.exp(math.pow(sigPhi, 2) + 1)
-  }
-
-  /**
-   * Расчет интервала частотной корреляции
-   *
-   * @param sigPhi
-   * @param f
-   * @return
-   */
-  def Fc(sigPhi: Double, f: Double): Double = {
-    f / (math.sqrt(2) * sigPhi)
-  }
-
-  /**
-   * Расчет интервала пространственной корреляции
-   *
-   * @param sigPhi
-   * @return
-   */
-  def Pc(sigPhi: Double): Double = {
-    val Lc = 200 //Средний размер неоднородностей
-    Lc / sigPhi
-  }
-
   def printHelp(): Unit = {
     System.out.println(
       """
-    Usage: <progname> <hour>
-    <hour> - hour back to calc
+    Usage: <program name> <seconds>
+    <hour> - seconds back to calc
     """)
   }
 }
+
