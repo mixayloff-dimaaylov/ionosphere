@@ -45,8 +45,24 @@ object NtFunctions extends Serializable {
       val f1_2 = f1 * f1
       val f2_2 = f2 * f2
 
-      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (l1 * waveLength(f1) - l2 * waveLength(f2))
+      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (l2 * waveLength(f2) - l1 * waveLength(f1))
     }
+  }
+
+  /**
+   * Расчет автокорреляционной функции (АКФ) флуктуаций ПЭС
+   *
+   * @param seq последовательность delNT
+   * @return Интервал временной корреляции
+   */
+  def timeCorrelation(seq: Seq[Double]): Double = {
+    val seqSum = (seq, seq).zipped.map(_ * _).sum
+
+    val index = Seq.range(1, seq.length)
+      .indexWhere(i => (seq.drop(i), seq).zipped.map(_ * _).sum / seqSum < 1 / Math.E)
+      .toDouble
+
+    index * 0.02
   }
 }
 
@@ -383,7 +399,7 @@ object TecCalculation extends Serializable {
     val nt = rawData.select("nt").map(r => r.getDouble(0)).collect().toSeq
 
     val filterOrder = 6
-    val zero : Double = 0;
+    val zero: Double = 0;
 
     val zeroSeq = mutable.Seq.fill[Double](filterOrder)(zero)
     val NTSeq = NTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder, zero) ++ nt
@@ -485,6 +501,53 @@ object TecCalculation extends Serializable {
     result
       .select("time", "sat", "sigcomb", "f1", "f2", "sigNT", "sigPhi", "gamma", "Fc", "Pc")
       .write.mode("append").jdbc(jdbcUri, "computed.xz1", jdbcProps)
+  }
+
+  def runJobCorrelation(spark: SparkSession, from: Long, to: Long): Unit = {
+    println(s"Correlation")
+
+    val sc = spark.sqlContext
+    import spark.implicits._
+
+    val rawData = sc.read.jdbc(
+      jdbcUri,
+      s"""
+         |(
+         |SELECT
+         |  toUInt64(floor(time/1000,0)*1000) time,
+         |  sat,
+         |  sigcomb,
+         |  delNT
+         |FROM
+         |	computed.NTDerivatives
+         |WHERE
+         |  d BETWEEN toDate($from/1000) AND toDate($to/1000) AND NTDerivatives.time BETWEEN $from AND $to
+         |)
+        """.stripMargin,
+      jdbcProps
+    )
+
+    val uTimeCorrelation = udf(NtFunctions.timeCorrelation _)
+
+    val result = rawData
+      .groupBy("time", "sat", "sigcomb")
+      .agg(collect_list("delNT").as("delNTSeq"))
+      .withColumn("xz2", uTimeCorrelation($"delNTSeq"))
+
+    //result.show()
+
+    //CREATE TABLE computed.xz2 (
+    //  time UInt64,
+    //  sat String,
+    //  sigcomb String,
+    //  xz2 Float64,
+    //  d Date MATERIALIZED toDate(round(time / 1000))
+    //) ENGINE = ReplacingMergeTree(d, (time, sat, sigcomb), 8192)
+    //TTL d + INTERVAL 2 Week DELETE
+
+    result
+      .select("time", "sat", "sigcomb", "xz2")
+      .write.mode("append").jdbc(jdbcUri, "computed.xz2", jdbcProps)
   }
 
   def printHelp(): Unit = {
