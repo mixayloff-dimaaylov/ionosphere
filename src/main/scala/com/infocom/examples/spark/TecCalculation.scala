@@ -145,8 +145,7 @@ object SigNtFunctions extends Serializable {
    * Расчет интервала частотной корреляции
    *
    */
-  //noinspection ScalaStyle
-  def Fc(sigPhi: Double, f: Double): Double = {
+  def fc(sigPhi: Double, f: Double): Double = {
     f / (math.sqrt(2) * sigPhi)
   }
 
@@ -154,14 +153,13 @@ object SigNtFunctions extends Serializable {
    * Расчет интервала пространственной корреляции
    *
    */
-  //noinspection ScalaStyle
-  def Pc(sigPhi: Double): Double = {
+  def pc(sigPhi: Double): Double = {
     val Lc = 200 //Средний размер неоднородностей
     Lc / sigPhi
   }
 }
 
-//noinspection ScalaStyle
+
 object TecCalculation extends Serializable {
   @transient val jdbcUri = s"jdbc:clickhouse://st9-ape-ionosphere2s-1:8123"
   @transient val jdbcProps = new Properties()
@@ -199,7 +197,7 @@ object TecCalculation extends Serializable {
     spark.close()
   }
 
-  def Fire(repeat: String): Unit = {
+  def fire(repeat: String): Unit = {
     // "/ 1000 * 1000" - выравнивание по целым секундам. Для S4 и аналогичным.
     //Возьмем время минуту назад как начальная инициализация
     var from = new java.util.Date().getTime / 1000 * 1000 - 60000
@@ -472,8 +470,8 @@ object TecCalculation extends Serializable {
 
     val uSigPhi = udf(SigNtFunctions.sigPhi _)
     val uGamma = udf(SigNtFunctions.gamma _)
-    val uFc = udf(SigNtFunctions.Fc _)
-    val uPc = udf(SigNtFunctions.Pc _)
+    val uFc = udf(SigNtFunctions.fc _)
+    val uPc = udf(SigNtFunctions.pc _)
 
     val result = rawData
       .withColumn("sigPhi", uSigPhi($"sigNT", $"f1"))
