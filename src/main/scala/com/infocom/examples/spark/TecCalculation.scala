@@ -560,7 +560,7 @@ object TecCalculation extends Serializable {
     //      .withColumn("Tc6", uTimeCorrelation6($"delNTSeq"))
     //      .withColumn("Tc7", uTimeCorrelation7($"delNTSeq"))
 
-    result.show()
+    //result.show()
 
     //CREATE TABLE computed.Tc (
     //  time UInt64,
