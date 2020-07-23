@@ -122,14 +122,20 @@ object DigitalFilters extends Serializable {
     butterworthFilter(b, a, nt, delNt)
   }
 
+  @SuppressWarnings(Array("org.wartremover.warts.Throw"))
   private def butterworthFilter(b: Seq[Double], a: Seq[Double], bInputSeq: Seq[Double], aInputSeq: Seq[Double]): Double = {
-    if (b.length != bInputSeq.length) throw
+    if (b.length !== bInputSeq.length) throw
       new IllegalArgumentException(s"The length of b must be equal to bInputSeq length")
 
-    if (a.length != aInputSeq.length) throw
+    if (a.length !== aInputSeq.length) throw
       new IllegalArgumentException(s"The length of a must be equal to aInputSeq length")
 
     (b, bInputSeq).zipped.map((x, y) => x * y).sum - (a, aInputSeq).zipped.map((x, y) => x * y).sum
+  }
+
+  @SuppressWarnings(Array("org.wartremover.warts.Equals"))
+  implicit final class AnyOps[A](self: A) {
+    def !==(other: A): Boolean = self != other
   }
 }
 
@@ -172,8 +178,12 @@ object SigNtFunctions extends Serializable {
 object TecCalculation extends Serializable {
   @transient val jdbcUri = s"jdbc:clickhouse://st9-ape-ionosphere2s-1:8123"
   @transient val jdbcProps = new Properties()
+
+  @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
   @transient private val NTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
+  @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
   @transient private val avgNTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
+  @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
   @transient private val delNTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
 
   {
@@ -183,18 +193,19 @@ object TecCalculation extends Serializable {
 
 
   def main(args: Array[String]): Unit = {
-    if (args.length != 1) {
+    if (args.length < 1) {
       System.out.println("Wrong arguments")
       printHelp()
       System.exit(1)
     }
 
-    println("v 20200608")
+    if (args.length > 1) {
+      System.out.println("Extra arguments")
+      printHelp()
+      System.exit(1)
+    }
 
-    val now = (new java.util.Date).getTime
-    val from = now - args(0).toLong
-
-    mainJob(from, now)
+    fire(args(0))
   }
 
   private def mainJob(from: Long, to: Long): Unit = {
@@ -207,6 +218,8 @@ object TecCalculation extends Serializable {
     spark.close()
   }
 
+  @SuppressWarnings(Array("org.wartremover.warts.Var"))
+  @SuppressWarnings(Array("org.wartremover.warts.While"))
   def fire(repeat: String): Unit = {
     // "/ 1000 * 1000" - выравнивание по целым секундам. Для S4 и аналогичным.
     //Возьмем время минуту назад как начальная инициализация
@@ -410,6 +423,7 @@ object TecCalculation extends Serializable {
     val filterOrder = 6
     val zero: Double = 0;
 
+    @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
     val zeroSeq = mutable.Seq.fill[Double](filterOrder)(zero)
     val NTSeq = NTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder, zero) ++ nt
     val avgNTSeq = avgNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
@@ -579,8 +593,8 @@ object TecCalculation extends Serializable {
   def printHelp(): Unit = {
     System.out.println(
       """
-    Usage: <program name> <seconds>
-    <hour> - seconds back to calc
+    Usage: <program name> <milliseconds>
+    <milliseconds> - milliseconds between calc
     """)
   }
 }
