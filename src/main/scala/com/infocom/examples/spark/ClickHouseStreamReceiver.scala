@@ -66,6 +66,7 @@ object StreamReceiver {
       ).asInstanceOf[InputDStream[ConsumerRecord[Null, Array[TDataPoint]]]]
 
       stream.start()
+      System.out.println($"Create $topic reader")
       stream.flatMap[TDataPoint](_.value())
     }
 
@@ -82,6 +83,7 @@ object StreamReceiver {
     }
 
     ssc.start()
+    System.out.println("Start StreamingContext")
     ssc.awaitTermination()
     spark.close()
   }

@@ -32,18 +32,21 @@ object ClickHouse {
    */
   case class RangeRow(time: Long, adr: Double, psr: Double, cno: Double, locktime: Double, sat: String, system: String, freq: String, glofreq: Int, prn: Int)
 
-  def toRow(dp: DataPointRange): RangeRow = RangeRow(
-    dp.Timestamp,
-    dp.Adr,
-    dp.Psr,
-    dp.CNo,
-    dp.LockTime,
-    dp.Satellite,
-    dp.NavigationSystem.toString,
-    dp.SignalType.toString,
-    dp.GloFreq,
-    dp.Prn
-  )
+  def toRow(dp: DataPointRange): RangeRow = {
+    System.out.println("Get DataPointRange")
+    RangeRow(
+      dp.Timestamp,
+      dp.Adr,
+      dp.Psr,
+      dp.CNo,
+      dp.LockTime,
+      dp.Satellite,
+      dp.NavigationSystem.toString,
+      dp.SignalType.toString,
+      dp.GloFreq,
+      dp.Prn
+    )
+  }
 
   /**
    * CREATE TABLE rawdata.satxyz2 (
@@ -67,13 +70,17 @@ object ClickHouse {
    */
   case class Satxyz2Row(time: Long, geopoint: Long, ionpoint: Long, elevation: Double, sat: String, system: String, prn: Int)
 
-  def toRow(dp: DataPointSatxyz2): Satxyz2Row = Satxyz2Row(
-    dp.Timestamp,
-    StreamFunctions.satGeoPoint(dp),
-    StreamFunctions.satIonPoint(dp),
-    StreamFunctions.satElevation(dp),
-    dp.Satellite,
-    dp.NavigationSystem.toString,
-    dp.Prn
-  )
+  def toRow(dp: DataPointSatxyz2): Satxyz2Row = {
+    System.out.println("Get DataPointSatxyz2")
+
+    Satxyz2Row(
+      dp.Timestamp,
+      StreamFunctions.satGeoPoint(dp),
+      StreamFunctions.satIonPoint(dp),
+      StreamFunctions.satElevation(dp),
+      dp.Satellite,
+      dp.NavigationSystem.toString,
+      dp.Prn
+    )
+  }
 }
