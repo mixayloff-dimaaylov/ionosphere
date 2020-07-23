@@ -16,6 +16,8 @@ import scala.reflect._
 
 object StreamReceiver {
   def main(args: Array[String]): Unit = {
+    System.out.println("Run main")
+
     if (args.length < 2) {
       System.out.println("Wrong arguments")
       printHelp()
@@ -42,10 +44,14 @@ object StreamReceiver {
       conf.setMaster("local[*]")
     }
 
+    System.out.println("Init conf")
+
     @transient val spark = SparkSession.builder.config(conf).getOrCreate()
     import spark.implicits._
 
+    System.out.println("Create StreamingContext")
     val ssc = new StreamingContext(spark.sparkContext, Seconds(60))
+    System.out.println("Created StreamingContext")
 
     def createKafkaStream[TDataPoint: ClassTag](topic: String): DStream[TDataPoint] = {
       val params = Map[String, Object](
