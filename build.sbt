@@ -33,21 +33,16 @@ wartremoverErrors ++= Seq(
   Wart.Any2StringAdd,
   Wart.EitherProjectionPartial,
   Wart.Enumeration,
-  Wart.Equals,
   Wart.ExplicitImplicitTypes,
   Wart.FinalVal,
   Wart.IsInstanceOf,
   Wart.JavaConversions,
   Wart.LeakingSealed,
   Wart.ListOps,
-  Wart.MutableDataStructures,
   Wart.Null,
   Wart.Option2Iterable,
   Wart.OptionPartial,
-  Wart.Throw,
-  Wart.TryPartial,
-  Wart.Var,
-  Wart.While
+  Wart.TryPartial
 )
 
 val sparkVersion = "2.2.1"
