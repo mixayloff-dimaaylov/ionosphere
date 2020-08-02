@@ -276,7 +276,7 @@ object TecCalculation extends Serializable {
     })
     runJobXz1(spark, from, to)
     runJobS4(spark, from, to)
-    runJobCorrelation(spark, from, to)
+    //runJobCorrelation(spark, from, to)
   }
 
   def runJobNt(spark: SparkSession, from: Long, to: Long, sat: String, f2Name: String): String = {
