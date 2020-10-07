@@ -8,8 +8,8 @@ import com.infocom.examples.spark.data.DataPointSatxyz2
  */
 object StreamFunctions {
   // WGS84 ellipsoid constants
-  private val observationLat: Double = 55,3780970
-  private val observationLon: Double = 37,4726460
+  private val observationLat: Double = 55.3780970
+  private val observationLon: Double = 37.4726460
   private val observationAlt: Double = 652.1387
   private val a: Double = 6378137 // radius
   private val e: Double = 8.1819190842622e-2 // eccentricity
