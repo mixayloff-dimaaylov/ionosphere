@@ -46,7 +46,6 @@ wartremoverErrors ++= Seq(
   Wart.OptionPartial,
   Wart.Throw,
   Wart.TryPartial,
-  Wart.Var,
   Wart.While
 )
 

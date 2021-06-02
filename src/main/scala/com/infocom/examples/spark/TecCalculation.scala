@@ -174,9 +174,8 @@ object SigNtFunctions extends Serializable {
   }
 }
 
-
 object TecCalculation extends Serializable {
-  @transient val jdbcUri = s"jdbc:clickhouse://st9-ape-ionosphere2s-1:8123"
+  @transient var jdbcUri = ""
   @transient val jdbcProps = new Properties()
 
   @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
@@ -191,21 +190,23 @@ object TecCalculation extends Serializable {
     jdbcProps.setProperty("numPartitions", "1")
   }
 
-
   def main(args: Array[String]): Unit = {
-    if (args.length < 1) {
+    if (args.length < 2) {
       System.out.println("Wrong arguments")
       printHelp()
       System.exit(1)
     }
 
-    if (args.length > 1) {
+    if (args.length > 2) {
       System.out.println("Extra arguments")
       printHelp()
       System.exit(1)
     }
 
-    fire(args(0))
+    val clickHouseServerAddress = args(0)
+    jdbcUri = s"jdbc:clickhouse://$clickHouseServerAddress"
+
+    fire(args(1))
   }
 
   private def mainJob(from: Long, to: Long): Unit = {
@@ -560,7 +561,6 @@ object TecCalculation extends Serializable {
     //    val uTimeCorrelation6 = udf(NtFunctions.timeCorrelationItem(6) _)
     //    val uTimeCorrelation7 = udf(NtFunctions.timeCorrelationItem(7) _)
 
-
     val result = rawData
       .groupBy("time", "sat", "sigcomb")
       .agg(collect_list("delNT").as("delNTSeq"))
@@ -593,9 +593,11 @@ object TecCalculation extends Serializable {
   def printHelp(): Unit = {
     System.out.println(
       """
-    Usage: <program name> <milliseconds>
-    <milliseconds> - milliseconds between calc
-    """)
+    Usage: <program name> <clickhouse_server> <milliseconds>
+    <clickhouse_server>   - ClickHouse server (HTTP-interface) address:port, (string)
+    <milliseconds> - milliseconds between calc, (integer)
+    """
+    )
   }
 }
 
