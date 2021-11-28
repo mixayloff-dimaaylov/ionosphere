@@ -1,0 +1,3 @@
+# current sbt version conflicts with bloom and metals
+.bloop/
+.project/metals.sbt
