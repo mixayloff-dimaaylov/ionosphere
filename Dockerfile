@@ -44,5 +44,5 @@ CMD /spark/bin/spark-submit \
 	--conf spark.yarn.max.executor.failures=8 \
 	--conf spark.yarn.executor.failuresValidityInterval=1h \
 	/spark/jars/novatel-streaming-assembly-1.0.jar \
-	$CH_HOST:8123 12000000
+	$CH_HOST:8123 120000
         # ClickHouse # delay
