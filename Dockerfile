@@ -1,5 +1,8 @@
 FROM mozilla/sbt:8u171_0.13.13 AS build
 WORKDIR '/usr/local/src/spark'
+COPY build.sbt .
+RUN sbt update
+
 COPY . .
 RUN sbt projectAssembly/assembly
 
