@@ -49,6 +49,105 @@ object ClickHouse {
   }
 
   /**
+   * CREATE TABLE rawdata.ismredobs (
+   *   time UInt64,
+   *   totals4 Float64,
+   *   sat String,
+   *   system String,
+   *   freq String,
+   *   glofreq Int32,
+   *   prn Int32,
+   *   d Date MATERIALIZED toDate(round(time / 1000))
+   * ) ENGINE = MergeTree(d, (time, sat, freq), 8192)
+   *
+   * @param time Время, мс
+   * @param totals4 S4
+   * @param sat Наименование спутника
+   * @param system Навигационная система (GPS, GLONASS)
+   * @param freq Наименование частоты (L1, L2, L5)
+   * @param glofreq Частота GLONASS (-7..6)
+   * @param prn Номер спутника
+   */
+  case class IsmredobsRow(time: Long, totals4: Double, sat: String, system: String, freq: String, glofreq: Int, prn: Int)
+
+  def toRow(dp: DataPointIsmredobs): IsmredobsRow = IsmredobsRow(
+    dp.Timestamp,
+    dp.TotalS4,
+    dp.Satellite,
+    dp.NavigationSystem.toString,
+    dp.SignalType.toString,
+    dp.GloFreq,
+    dp.Prn
+  )
+
+  /**
+   * CREATE TABLE rawdata.ismdetobs (
+   *   time UInt64,
+   *   power Float64,
+   *   sat String,
+   *   system String,
+   *   freq String,
+   *   glofreq Int32,
+   *   prn Int32,
+   *   d Date MATERIALIZED toDate(round(time / 1000))
+   * ) ENGINE = MergeTree(d, (time, sat, freq), 8192)
+   *
+   * @param time Время, мс
+   * @param power S4
+   * @param sat Наименование спутника
+   * @param system Навигационная система (GPS, GLONASS)
+   * @param freq Наименование частоты (L1, L2, L5)
+   * @param glofreq Частота GLONASS (-7..6)
+   * @param prn Номер спутника
+   */
+  case class IsmdetobsRow(time: Long, power: Double, sat: String, system: String, freq: String, glofreq: Int, prn: Int)
+
+  def toRow(dp: DataPointIsmdetobs): IsmdetobsRow = IsmdetobsRow(
+    dp.Timestamp,
+    dp.Power,
+    dp.Satellite,
+    dp.NavigationSystem.toString,
+    dp.SignalType.toString,
+    dp.GloFreq,
+    dp.Prn
+  )
+
+  /**
+   * CREATE TABLE rawdata.ismrawtec (
+   *   time UInt64,
+   *   tec Float64,
+   *   sat String,
+   *   system String,
+   *   primaryfreq String,
+   *   secondaryfreq String,
+   *   glofreq Int32,
+   *   prn Int32,
+   *   d Date MATERIALIZED toDate(round(time / 1000))
+   * ) ENGINE = MergeTree(d, (time, sat, primaryfreq, secondaryfreq), 8192)
+   *
+   * @param time Время, мс
+   * @param tec ПЭС
+   * @param sat Наименование спутника
+   * @param system Навигационная система (GPS, GLONASS)
+   * @param primaryfreq Наименование первой частоты (L1, L2, L5)
+   * @param secondaryfreq Наименование второй частоты (L1, L2, L5)
+   * @param glofreq Частота GLONASS (-7..6)
+   * @param prn Номер спутника
+   */
+  case class IsmrawtecRow(time: Long, tec: Double, sat: String, system: String, primaryfreq: String, secondaryfreq: String, glofreq: Int, prn: Int)
+
+  def toRow(dp: DataPointIsmrawtec): IsmrawtecRow = IsmrawtecRow(
+    dp.Timestamp,
+    dp.Tec,
+    dp.Satellite,
+    dp.NavigationSystem.toString,
+    dp.PrimarySignal.toString,
+    dp.SecondarySignal.toString,
+    dp.GloFreq,
+    dp.Prn
+  )
+
+  /**
    * CREATE TABLE rawdata.satxyz2 (
    *   time UInt64,
    *   geopoint UInt64,

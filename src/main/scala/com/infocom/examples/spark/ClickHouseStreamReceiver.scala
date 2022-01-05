@@ -82,6 +82,24 @@ object StreamReceiver {
       _.toDF.write.mode("append").jdbc(jdbcUri, "rawdata.range", jdbcProps)
     }
 
+    // ISMREDOBS
+
+    createKafkaStream[DataPointIsmredobs]("datapoint-raw-ismredobs") map toRow foreachRDD {
+      _.toDF.write.mode("append").jdbc(jdbcUri, "rawdata.ismredobs", jdbcProps)
+    }
+
+    // ISMDETOBS
+
+    createKafkaStream[DataPointIsmdetobs]("datapoint-raw-ismdetobs") map toRow foreachRDD {
+      _.toDF.write.mode("append").jdbc(jdbcUri, "rawdata.ismdetobs", jdbcProps)
+    }
+
+    // ISMRAWTEC
+
+    createKafkaStream[DataPointIsmrawtec]("datapoint-raw-ismrawtec") map toRow foreachRDD {
+      _.toDF.write.mode("append").jdbc(jdbcUri, "rawdata.ismrawtec", jdbcProps)
+    }
+
     // SATXYZ2
 
     createKafkaStream[DataPointSatxyz2]("datapoint-raw-satxyz2") map toRow foreachRDD {
