@@ -291,7 +291,7 @@ object TecCalculation extends Serializable {
          |  any(system) AS system,
          |  any(glofreq) AS glofreq,
          |  '$sigcomb' AS sigcomb,
-         |  ifNull(dcb, 0) AS dcb
+         |  ifNull(any(dcb), 0) AS dcb
          |FROM
          |  rawdata.range
          |LEFT OUTER JOIN
