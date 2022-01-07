@@ -298,7 +298,7 @@ object TecCalculation extends Serializable {
          |  misc.dcb
          |  ON (range.sat = dcb.sat)
          |  AND (range.system = dcb.system)
-         |  AND (range.freq = dcb.freq)
+         |  AND (sigcomb = dcb.sigcomb)
          |WHERE
          |  sat='$sat' AND d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
          |  and freq in ('$f1Name', '$f2Name')
