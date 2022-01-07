@@ -25,6 +25,18 @@ object NtFunctions extends Serializable {
   }
 
   /**
+   * ПЭС с поправками DCB
+   */
+  def dcbNt: UserDefinedFunction = udf {
+    (l1: Double, l2: Double, f1: Double, f2: Double, dcb: Double) => {
+      val f1_2 = f1 * f1
+      val f2_2 = f2 * f2
+
+      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * C * ((l2/f2) - (l1/f1) + dcb)
+    }
+  }
+
+  /**
    * Расчет автокорреляционной функции (АКФ) флуктуаций ПЭС
    *
    * @param seq последовательность delNT
@@ -278,9 +290,15 @@ object TecCalculation extends Serializable {
          |  anyIf(freq, freq = '$f2Name') AS f2,
          |  any(system) AS system,
          |  any(glofreq) AS glofreq,
-         |  '$sigcomb' AS sigcomb
+         |  '$sigcomb' AS sigcomb,
+         |  ifNull(dcb, 0) AS dcb
          |FROM
          |  rawdata.range
+         |LEFT OUTER JOIN
+         |  misc.dcb
+         |  ON (range.sat = dcb.sat)
+         |  AND (range.system = dcb.system)
+         |  AND (range.freq = dcb.freq)
          |WHERE
          |  sat='$sat' AND d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
          |  and freq in ('$f1Name', '$f2Name')
@@ -303,7 +321,7 @@ object TecCalculation extends Serializable {
     //range.show()
 
     val tecRange = range
-      .withColumn("nt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2"))
+      .withColumn("nt", NtFunctions.dcbNt($"adr1", $"adr2", $"f1", $"f2", $"dcb"))
       .select("time", "sat", "sigcomb", "f1", "f2", "nt")
 
     //tecRange.show()
