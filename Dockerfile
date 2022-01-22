@@ -15,7 +15,7 @@ FROM install AS spark-streamer-1
 # ClickHouse client ports
 CMD /spark/bin/spark-submit \
 	--deploy-mode client \
-        --master local[*] \
+        --master "${SPARK_MASTER:-local[*]}" \
 	--class com.infocom.examples.spark.StreamReceiver \
 	--driver-memory 512m \
 	--num-executors 1 \
@@ -35,7 +35,7 @@ FROM install AS spark-streamer-2
 # ClickHouse client ports
 CMD /spark/bin/spark-submit \
 	--deploy-mode client \
-        --master local[*] \
+        --master "${SPARK_MASTER:-local[*]}" \
 	--class com.infocom.examples.spark.TecCalculation \
 	--driver-memory 512m \
 	--num-executors 1 \
