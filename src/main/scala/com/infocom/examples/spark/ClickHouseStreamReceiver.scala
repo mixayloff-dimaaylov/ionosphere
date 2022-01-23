@@ -1,6 +1,6 @@
 package com.infocom.examples.spark
 
-import java.util.Properties
+import java.util.{Properties, UUID}
 import com.infocom.examples.spark.data._
 import com.infocom.examples.spark.schema.ClickHouse._
 import com.infocom.examples.spark.serialization._
@@ -62,7 +62,7 @@ object StreamReceiver {
         "enable.auto.commit" -> (true: java.lang.Boolean),
         //"session.timeout.ms" -> "60000",
         "auto.offset.reset" -> "latest",
-        "group.id" -> s"$topic-groupid"
+        "group.id" -> s"spark-kafka-source-gnss-stream-receiver-${UUID.randomUUID}-${topic}"
       )
 
       val stream = KafkaUtils.createDirectStream[Null, Array[TDataPoint]](
