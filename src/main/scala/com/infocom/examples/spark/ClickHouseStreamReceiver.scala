@@ -62,7 +62,7 @@ object StreamReceiver {
         "enable.auto.commit" -> (true: java.lang.Boolean),
         //"session.timeout.ms" -> "60000",
         "auto.offset.reset" -> "latest",
-        "groupIdPrefix" -> s"gnss-stream-receiver-$topic-"
+        "group.id" -> s"$topic-groupid"
       )
 
       val stream = KafkaUtils.createDirectStream[Null, Array[TDataPoint]](
