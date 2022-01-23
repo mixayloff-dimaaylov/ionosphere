@@ -60,7 +60,7 @@ object StreamReceiver {
         "key.deserializer" -> classOf[NullDeserializer],
         "value.deserializer" -> classOf[AvroDataPointDeserializer[Array[TDataPoint]]],
         "value.deserializer.type" -> classTag[Array[TDataPoint]].runtimeClass,
-        "enable.auto.commit" -> (true: java.lang.Boolean),
+        "enable.auto.commit" -> (false: java.lang.Boolean),
         //"session.timeout.ms" -> "60000",
         "auto.offset.reset" -> "latest",
         "group.id" -> s"gnss-stream-receiver-${clientUID}-${topic}"
