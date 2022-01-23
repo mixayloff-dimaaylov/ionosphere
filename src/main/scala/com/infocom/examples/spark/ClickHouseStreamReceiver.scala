@@ -1,6 +1,6 @@
 package com.infocom.examples.spark
 
-import java.util.Properties
+import java.util.{Properties, UUID}
 import com.infocom.examples.spark.data._
 import com.infocom.examples.spark.schema.ClickHouse._
 import com.infocom.examples.spark.serialization._
@@ -33,6 +33,7 @@ object StreamReceiver {
     val kafkaServerAddress = args(0)
     val clickHouseServerAddress = args(1)
     val jdbcUri = s"jdbc:clickhouse://$clickHouseServerAddress"
+    val clientUID = s"${UUID.randomUUID}"
 
     @transient val jdbcProps = new Properties()
     jdbcProps.setProperty("isolationLevel", "NONE")
@@ -59,10 +60,10 @@ object StreamReceiver {
         "key.deserializer" -> classOf[NullDeserializer],
         "value.deserializer" -> classOf[AvroDataPointDeserializer[Array[TDataPoint]]],
         "value.deserializer.type" -> classTag[Array[TDataPoint]].runtimeClass,
-        "enable.auto.commit" -> (true: java.lang.Boolean),
+        "enable.auto.commit" -> (false: java.lang.Boolean),
         //"session.timeout.ms" -> "60000",
         "auto.offset.reset" -> "latest",
-        "group.id" -> s"$topic-groupid"
+        "group.id" -> s"gnss-stream-receiver-${clientUID}-${topic}"
       )
 
       val stream = KafkaUtils.createDirectStream[Null, Array[TDataPoint]](
