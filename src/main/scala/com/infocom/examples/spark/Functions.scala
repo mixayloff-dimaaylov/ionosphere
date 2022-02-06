@@ -51,6 +51,7 @@ object Functions extends Serializable {
       }
   }
 
+  @deprecated("Duplicates functionality of f()", "logserver-spark 0.2.0")
   def f1: UserDefinedFunction = udf {
     (system: String, glofreq: Int) =>
       system match {
@@ -60,6 +61,7 @@ object Functions extends Serializable {
       }
   }
 
+  @deprecated("Duplicates functionality of f()", "logserver-spark 0.2.0")
   def f2: UserDefinedFunction = udf {
     (system: String, glofreq: Int) =>
       system match {
