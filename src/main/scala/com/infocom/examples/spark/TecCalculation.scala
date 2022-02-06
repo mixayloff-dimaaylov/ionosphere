@@ -274,6 +274,8 @@ object TecCalculation extends Serializable {
          |  anyIf(adr, freq = '$f2Name') AS adr2,
          |  anyIf(psr, freq = '$f1Name') AS psr1,
          |  anyIf(psr, freq = '$f2Name') AS psr2,
+         |  anyIf(freq, freq = '$f1Name') AS f1,
+         |  anyIf(freq, freq = '$f2Name') AS f2,
          |  any(system) AS system,
          |  any(glofreq) AS glofreq,
          |  '$sigcomb' AS sigcomb
@@ -295,8 +297,8 @@ object TecCalculation extends Serializable {
         """.stripMargin,
       jdbcProps
     )
-      .withColumn("f1", f(f1Name)($"system", $"glofreq"))
-      .withColumn("f2", f(f2Name)($"system", $"glofreq"))
+      .withColumn("f1", f($"system", $"f1", $"glofreq"))
+      .withColumn("f2", f($"system", $"f2", $"glofreq"))
 
     //range.show()
 
