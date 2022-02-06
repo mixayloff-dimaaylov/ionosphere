@@ -31,22 +31,26 @@ object Functions extends Serializable {
     (time: Long) => time
   }
 
-  def f(freq: String): UserDefinedFunction = udf {
-    (system: String, glofreq: Int) =>
-      freq match {
-        case "L1CA" => system match {
-          case "GLONASS" => 1602.0e6 + glofreq * 0.5625e6
-          case "GPS" => 1575.42e6
-          case _ => 0
-        }
-        case "L2CA" => 1246.0e6 + glofreq * 0.4375e6
-        case "L2C" => 1227.60e6
-        case "L2P" => system match {
-          case "GLONASS" => 1246.0e6 + glofreq * 0.4375e6
-          case "GPS" => 1227.60e6
-          case _ => 0
-        }
-        case "L5Q" => 1176.45e6
+  def f: UserDefinedFunction = udf {
+    (system: String, freq: String, glofreq: Int) =>
+      system match {
+        case "GLONASS" =>
+          freq match {
+            case "L1CA"       => 1602.0e6 + glofreq * 0.5625e6
+            case "L2CA"       => 1246.0e6 + glofreq * 0.4375e6
+            case "L2P"        => 1246.0e6 + glofreq * 0.4375e6
+            case _            => 0
+          }
+
+        case "GPS" =>
+          freq match {
+            case "L1CA"       => 1575.42e6
+            case "L2C"        => 1227.60e6
+            case "L2P"        => 1227.60e6
+            case "L5Q"        => 1176.45e6
+            case _            => 0
+          }
+
         case _ => 0
       }
   }

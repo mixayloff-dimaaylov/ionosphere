@@ -87,8 +87,8 @@ object RangeCalculations {
       .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")).as("K"))
 
     val computed = range
-      .withColumn("f1", f1($"system", $"glofreq"))
-      .withColumn("f2", f2($"system", $"glofreq"))
+      .withColumn("f1", f($"system", $"freq", $"glofreq"))
+      .withColumn("f2", f($"system", $"freq", $"glofreq"))
       //.withColumn("K", lit(0))
       .join(Ks, "sat")
       .withColumn("min", min($"time".as[Long]).over(Window.partitionBy($"sat")))
