@@ -16,11 +16,11 @@ object NtFunctions extends Serializable {
    * ПЭС без поправок
    */
   def rawNt: UserDefinedFunction = udf {
-    (l1: Double, l2: Double, f1: Double, f2: Double) => {
+    (l1: Double, l2: Double, f1: Double, f2: Double, k: Double) => {
       val f1_2 = f1 * f1
       val f2_2 = f2 * f2
 
-      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (l2 * waveLength(f2) - l1 * waveLength(f1))
+      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (l2 * waveLength(f2) - l1 * waveLength(f1)) + k
     }
   }
 
@@ -302,8 +302,21 @@ object TecCalculation extends Serializable {
 
     //range.show()
 
-    val tecRange = range
-      .withColumn("nt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2"))
+    val Ks = range
+      .select($"time", $"sat", $"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")
+      .limit(K_SET_SIZE)
+      .groupBy($"sat")
+      .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")).as("K"))
+
+    //Ks.show()
+
+    val tecRange1 = range
+      .join(Ks, "sat")
+
+    //tecRange1.show()
+
+    val tecRange = tecRange1
+      .withColumn("nt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2", $"K"))
       .select("time", "sat", "sigcomb", "f1", "f2", "nt")
 
     //tecRange.show()
