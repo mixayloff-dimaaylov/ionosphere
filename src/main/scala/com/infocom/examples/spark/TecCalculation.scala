@@ -4,43 +4,14 @@ import java.util.Properties
 
 import org.apache.spark.SparkConf
 import org.apache.spark.sql._
+import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions._
 
 import scala.collection.mutable
 
+import Functions._
+
 object NtFunctions extends Serializable {
-  /**
-   * Скорость света
-   */
-  val C = 299792458.0
-
-  import org.apache.spark.sql.expressions.UserDefinedFunction
-
-  /**
-   * Частота волны для сигнала
-   */
-  def f(freq: String): UserDefinedFunction = udf {
-    (system: String, glofreq: Int) =>
-      freq match {
-        case "L1CA" => system match {
-          case "GLONASS" => 1602.0e6 + glofreq * 0.5625e6
-          case "GPS" => 1575.42e6
-          case _ => 0
-        }
-        case "L2CA" => 1246.0e6 + glofreq * 0.4375e6
-        case "L2C" => 1227.60e6
-        case "L2P" => system match {
-          case "GLONASS" => 1246.0e6 + glofreq * 0.4375e6
-          case "GPS" => 1227.60e6
-          case _ => 0
-        }
-        case "L5Q" => 1176.45e6
-        case _ => 0
-      }
-  }
-
-  def waveLength(f: Double): Double = C / f
-
   /**
    * ПЭС без поправок
    */
@@ -149,7 +120,7 @@ object SigNtFunctions extends Serializable {
    *
    */
   def sigPhi(sigNT: Double, f: Double): Double = {
-    10e16 * 80.8 * math.Pi * sigNT / (NtFunctions.C * f)
+    10e16 * 80.8 * math.Pi * sigNT / (C * f)
   }
 
   /**
@@ -303,6 +274,8 @@ object TecCalculation extends Serializable {
          |  anyIf(adr, freq = '$f2Name') AS adr2,
          |  anyIf(psr, freq = '$f1Name') AS psr1,
          |  anyIf(psr, freq = '$f2Name') AS psr2,
+         |  anyIf(freq, freq = '$f1Name') AS f1,
+         |  anyIf(freq, freq = '$f2Name') AS f2,
          |  any(system) AS system,
          |  any(glofreq) AS glofreq,
          |  '$sigcomb' AS sigcomb
@@ -324,8 +297,8 @@ object TecCalculation extends Serializable {
         """.stripMargin,
       jdbcProps
     )
-      .withColumn("f1", NtFunctions.f(f1Name)($"system", $"glofreq"))
-      .withColumn("f2", NtFunctions.f(f2Name)($"system", $"glofreq"))
+      .withColumn("f1", f($"system", $"f1", $"glofreq"))
+      .withColumn("f2", f($"system", $"f2", $"glofreq"))
 
     //range.show()
 
