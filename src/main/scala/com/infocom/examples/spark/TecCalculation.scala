@@ -12,15 +12,18 @@ import scala.collection.mutable
 import Functions._
 
 object NtFunctions extends Serializable {
+  import scala.math.abs
+
   /**
    * ПЭС без поправок
+   * @param dnt смещение, м
    */
   def rawNt: UserDefinedFunction = udf {
-    (l1: Double, l2: Double, f1: Double, f2: Double, k: Double) => {
+    (adr1: Double, adr2: Double, f1: Double, f2: Double, dnt: Double) => {
       val f1_2 = f1 * f1
       val f2_2 = f2 * f2
 
-      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (l2 * waveLength(f2) - l1 * waveLength(f1)) + k
+      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (abs(adr2) * waveLength(f2) - abs(adr1) * waveLength(f1) + dnt)
     }
   }
 
@@ -304,7 +307,6 @@ object TecCalculation extends Serializable {
 
     val Ks = range
       .select($"time", $"sat", $"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")
-      .limit(K_SET_SIZE)
       .groupBy($"sat")
       .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")).as("K"))
 

@@ -78,7 +78,7 @@ object Functions extends Serializable {
   def waveLength(f: Double): Double = C / f
 
   def k: UserDefinedFunction = udf {
-    (adr1: Double, adr2: Double, f1: Double, f2: Double, psr1: Double, psr2: Double) => (adr1 * waveLength(f1) - adr2 * waveLength(f2)) - (psr1 - psr2)
+    (adr1: Double, adr2: Double, f1: Double, f2: Double, psr1: Double, psr2: Double) => (psr2 - psr1) - (abs(adr2) * waveLength(f2) - abs(adr1) * waveLength(f1))
   }
 
   def dnt: UserDefinedFunction = udf {
@@ -91,13 +91,17 @@ object Functions extends Serializable {
     }
   }
 
+  /*
+   * @param dnt смещение, м
+   * @param dcb поправка спутника, нс
+   */
   def nt: UserDefinedFunction = udf {
-    (l1: Double, l2: Double, f1: Double, f2: Double, k: Double, sigma: Double) =>
+    (adr1: Double, adr2: Double, f1: Double, f2: Double, dnt: Double, dcb: Double) =>
       {
         val f1_2 = f1 * f1
         val f2_2 = f2 * f2
 
-        ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (l1 * waveLength(f1) - l2 * waveLength(f2) + k + sigma)
+        ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (abs(adr2) * waveLength(f2) - abs(adr1) * waveLength(f1) + dnt + dcb * C)
       }
   }
 
