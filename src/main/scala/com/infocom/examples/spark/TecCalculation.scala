@@ -300,6 +300,7 @@ object TecCalculation extends Serializable {
         """.stripMargin,
       jdbcProps
     )
+      .withColumn("rdcb", rdcb($"system", $"f2"))
       .withColumn("f1", f($"system", $"f1", $"glofreq"))
       .withColumn("f2", f($"system", $"f2", $"glofreq"))
 
@@ -319,6 +320,7 @@ object TecCalculation extends Serializable {
 
     val tecRange = tecRange1
       .withColumn("nt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2", $"K"))
+      .withColumn("nt", $"nt" + $"rdcb")
       .select("time", "sat", "sigcomb", "f1", "f2", "nt")
 
     //tecRange.show()
