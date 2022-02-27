@@ -155,6 +155,8 @@ object SigNtFunctions extends Serializable {
 object TecCalculation extends Serializable {
   @transient var jdbcUri = ""
   @transient val jdbcProps = new Properties()
+  @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
+  @transient private var DNTMap = mutable.Map[(String, String), Double]()
 
   @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
   @transient private val NTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
@@ -249,13 +251,94 @@ object TecCalculation extends Serializable {
       jdbcProps
     )
 
+    val rangeList =
+      range
+        .collect()
+        .map((r: Row) => (r.getString(0), "L1CA+" + r.getString(1)))
+        .toSeq
+
+    // выкинуть все значения, которых нет в range
+    DNTMap --= (DNTMap -- rangeList).keys
+
     range.collect().foreach(row => {
-      val sigComb = runJobNt(spark, from, to, row(0).toString, row(1).toString)
-      runJobDerivatives(spark, from, to, row(0).toString, sigComb)
+      val sat = row(0).toString
+      val f1Name = "L1CA"
+      val f2Name = row(1).toString
+      var sigComb = f1Name + "+" + f2Name
+
+      // запустить функцию расчета для тех, что в range, если их нет
+      if (!DNTMap.contains((sat, sigComb))) {
+        val newDNTitem = ((sat, sigComb) -> calcDNT(spark, from, to, sat, f2Name))
+        DNTMap += newDNTitem
+      }
+
+      sigComb = runJobNt(spark, from, to, sat, f2Name)
+      runJobDerivatives(spark, from, to, sat, sigComb)
     })
+
     runJobXz1(spark, from, to)
     runJobS4(spark, from, to)
     //runJobCorrelation(spark, from, to)
+  }
+
+  def calcDNT(spark: SparkSession, from: Long, to: Long, sat: String, f2Name: String): Double = {
+    val f1Name = "L1CA"
+    val sigcomb = s"$f1Name+$f2Name"
+
+    if (DNTMap.contains((sat, sigcomb))) {
+      (DNTMap.get((sat, sigcomb))).getOrElse(0.0d)
+    }
+
+    println(s"DNT for $sat & $sigcomb")
+
+    val sc = spark.sqlContext
+    import spark.implicits._
+
+    val range = sc.read.jdbc(
+      jdbcUri,
+      s"""
+         |(
+         |SELECT
+         |  time,
+         |  sat,
+         |  anyIf(adr, freq = '$f1Name') AS adr1,
+         |  anyIf(adr, freq = '$f2Name') AS adr2,
+         |  anyIf(psr, freq = '$f1Name') AS psr1,
+         |  anyIf(psr, freq = '$f2Name') AS psr2,
+         |  anyIf(freq, freq = '$f1Name') AS f1,
+         |  anyIf(freq, freq = '$f2Name') AS f2,
+         |  any(system) AS system,
+         |  any(glofreq) AS glofreq,
+         |  '$sigcomb' AS sigcomb
+         |FROM
+         |  rawdata.range
+         |WHERE
+         |  sat='$sat' AND d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
+         |  and freq in ('$f1Name', '$f2Name')
+         |GROUP BY
+         |  d,
+         |  time,
+         |  sat
+         |HAVING
+         |  has(groupArray(freq) AS f, '$f1Name')
+         |  AND has(f, '$f2Name')
+         |ORDER BY
+         |  time ASC
+         |)
+        """.stripMargin,
+      jdbcProps
+    )
+
+    val newDNT = range
+      .withColumn("f1", f($"system", $"f1", $"glofreq"))
+      .withColumn("f2", f($"system", $"f2", $"glofreq"))
+      .select($"time", $"sat", $"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")
+      .groupBy($"sat")
+      .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")).as("K"))
+      .select("K")
+      .map(r => r.getDouble(0))
+
+    newDNT.collect().toSeq(0)
   }
 
   def runJobNt(spark: SparkSession, from: Long, to: Long, sat: String, f2Name: String): String = {
