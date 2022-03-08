@@ -281,6 +281,11 @@ object TecCalculation extends Serializable {
     //runJobCorrelation(spark, from, to)
   }
 
+  def getDNT(sat: String, f1Name: String, f2Name: String): Double = {
+    val sigcomb = s"$f1Name+$f2Name"
+    DNTMap.get((sat, sigcomb)).getOrElse(0.0d)
+  }
+
   def calcDNT(spark: SparkSession, from: Long, to: Long, sat: String, f2Name: String): Double = {
     val f1Name = "L1CA"
     val sigcomb = s"$f1Name+$f2Name"
@@ -349,6 +354,8 @@ object TecCalculation extends Serializable {
     val sc = spark.sqlContext
     import spark.implicits._
 
+    val uGetDNT = udf(getDNT _)
+
     val range = sc.read.jdbc(
       jdbcUri,
       s"""
@@ -384,25 +391,14 @@ object TecCalculation extends Serializable {
       jdbcProps
     )
       .withColumn("rdcb", rdcb($"system", $"f2"))
+      .withColumn("DNT", uGetDNT($"sat", $"f1", $"f2"))
       .withColumn("f1", f($"system", $"f1", $"glofreq"))
       .withColumn("f2", f($"system", $"f2", $"glofreq"))
 
     //range.show()
 
-    val Ks = range
-      .select($"time", $"sat", $"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")
-      .groupBy($"sat")
-      .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")).as("K"))
-
-    //Ks.show()
-
-    val tecRange1 = range
-      .join(Ks, "sat")
-
-    //tecRange1.show()
-
-    val tecRange = tecRange1
-      .withColumn("nt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2", $"K"))
+    val tecRange = range
+      .withColumn("nt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2", $"DNT"))
       .withColumn("nt", $"nt" + $"rdcb")
       .select("time", "sat", "sigcomb", "f1", "f2", "nt")
 
