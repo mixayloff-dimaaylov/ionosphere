@@ -12,8 +12,6 @@ import scala.collection.mutable
 import Functions._
 
 object NtFunctions extends Serializable {
-  import scala.math.abs
-
   /**
    * ПЭС без поправок
    * @param dnt смещение, м
@@ -23,7 +21,7 @@ object NtFunctions extends Serializable {
       val f1_2 = f1 * f1
       val f2_2 = f2 * f2
 
-      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (abs(adr2) * waveLength(f2) - abs(adr1) * waveLength(f1) + dnt)
+      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (adr2 * waveLength(f2) - adr1 * waveLength(f1) + dnt)
     }
   }
 
