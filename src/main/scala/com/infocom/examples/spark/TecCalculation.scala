@@ -14,13 +14,14 @@ import Functions._
 object NtFunctions extends Serializable {
   /**
    * ПЭС без поправок
+   * @param dnt смещение, м
    */
   def rawNt: UserDefinedFunction = udf {
-    (l1: Double, l2: Double, f1: Double, f2: Double) => {
+    (adr1: Double, adr2: Double, f1: Double, f2: Double, dnt: Double) => {
       val f1_2 = f1 * f1
       val f2_2 = f2 * f2
 
-      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (l2 * waveLength(f2) - l1 * waveLength(f1))
+      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (adr2 * waveLength(f2) - adr1 * waveLength(f1) + dnt)
     }
   }
 
@@ -152,6 +153,8 @@ object SigNtFunctions extends Serializable {
 object TecCalculation extends Serializable {
   @transient var jdbcUri = ""
   @transient val jdbcProps = new Properties()
+  @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
+  @transient private var DNTMap = mutable.Map[(String, String), Double]()
 
   @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
   @transient private val NTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
@@ -246,19 +249,50 @@ object TecCalculation extends Serializable {
       jdbcProps
     )
 
+    val rangeList =
+      range
+        .collect()
+        .map((r: Row) => (r.getString(0), "L1CA+" + r.getString(1)))
+        .toSeq
+
+    // выкинуть все значения, которых нет в range
+    DNTMap --= (DNTMap -- rangeList).keys
+
     range.collect().foreach(row => {
-      val sigComb = runJobNt(spark, from, to, row(0).toString, row(1).toString)
-      runJobDerivatives(spark, from, to, row(0).toString, sigComb)
+      val sat = row(0).toString
+      val f1Name = "L1CA"
+      val f2Name = row(1).toString
+      var sigComb = f1Name + "+" + f2Name
+
+      // запустить функцию расчета для тех, что в range, если их нет
+      if (!DNTMap.contains((sat, sigComb))) {
+        val newDNTitem = ((sat, sigComb) -> calcDNT(spark, from, to, sat, f2Name))
+        DNTMap += newDNTitem
+      }
+
+      sigComb = runJobNt(spark, from, to, sat, f2Name)
+      runJobDerivatives(spark, from, to, sat, sigComb)
     })
+
     runJobXz1(spark, from, to)
     runJobS4(spark, from, to)
     //runJobCorrelation(spark, from, to)
   }
 
-  def runJobNt(spark: SparkSession, from: Long, to: Long, sat: String, f2Name: String): String = {
+  def getDNT(sat: String, f1Name: String, f2Name: String): Double = {
+    val sigcomb = s"$f1Name+$f2Name"
+    DNTMap.get((sat, sigcomb)).getOrElse(0.0d)
+  }
+
+  def calcDNT(spark: SparkSession, from: Long, to: Long, sat: String, f2Name: String): Double = {
     val f1Name = "L1CA"
     val sigcomb = s"$f1Name+$f2Name"
-    println(s"Nt for $sat & $sigcomb")
+
+    if (DNTMap.contains((sat, sigcomb))) {
+      (DNTMap.get((sat, sigcomb))).getOrElse(0.0d)
+    }
+
+    println(s"DNT for $sat & $sigcomb")
 
     val sc = spark.sqlContext
     import spark.implicits._
@@ -297,13 +331,71 @@ object TecCalculation extends Serializable {
         """.stripMargin,
       jdbcProps
     )
+
+    val newDNT = range
+      .withColumn("f1", f($"system", $"f1", $"glofreq"))
+      .withColumn("f2", f($"system", $"f2", $"glofreq"))
+      .select($"time", $"sat", $"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")
+      .groupBy($"sat")
+      .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")).as("K"))
+      .select("K")
+      .map(r => r.getDouble(0))
+
+    newDNT.collect().toSeq(0)
+  }
+
+  def runJobNt(spark: SparkSession, from: Long, to: Long, sat: String, f2Name: String): String = {
+    val f1Name = "L1CA"
+    val sigcomb = s"$f1Name+$f2Name"
+    println(s"Nt for $sat & $sigcomb")
+
+    val sc = spark.sqlContext
+    import spark.implicits._
+
+    val uGetDNT = udf(getDNT _)
+
+    val range = sc.read.jdbc(
+      jdbcUri,
+      s"""
+         |(
+         |SELECT
+         |  time,
+         |  sat,
+         |  anyIf(adr, freq = '$f1Name') AS adr1,
+         |  anyIf(adr, freq = '$f2Name') AS adr2,
+         |  anyIf(psr, freq = '$f1Name') AS psr1,
+         |  anyIf(psr, freq = '$f2Name') AS psr2,
+         |  anyIf(freq, freq = '$f1Name') AS f1,
+         |  anyIf(freq, freq = '$f2Name') AS f2,
+         |  any(system) AS system,
+         |  any(glofreq) AS glofreq,
+         |  '$sigcomb' AS sigcomb
+         |FROM
+         |  rawdata.range
+         |WHERE
+         |  sat='$sat' AND d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
+         |  and freq in ('$f1Name', '$f2Name')
+         |GROUP BY
+         |  d,
+         |  time,
+         |  sat
+         |HAVING
+         |  has(groupArray(freq) AS f, '$f1Name')
+         |  AND has(f, '$f2Name')
+         |ORDER BY
+         |  time ASC
+         |)
+        """.stripMargin,
+      jdbcProps
+    )
+      .withColumn("DNT", uGetDNT($"sat", $"f1", $"f2"))
       .withColumn("f1", f($"system", $"f1", $"glofreq"))
       .withColumn("f2", f($"system", $"f2", $"glofreq"))
 
     //range.show()
 
     val tecRange = range
-      .withColumn("nt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2"))
+      .withColumn("nt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2", $"DNT"))
       .select("time", "sat", "sigcomb", "f1", "f2", "nt")
 
     //tecRange.show()
