@@ -55,28 +55,6 @@ object Functions extends Serializable {
       }
   }
 
-  // TODO: добавить способ извлечения из базы
-  def rdcb: UserDefinedFunction = udf {
-    (system: String, freq: String) =>
-      system match {
-        case "GLONASS" =>
-          freq match {
-            case "L2CA"       => 14.522434225
-            case "L2P"        => 23.634117126
-            case _            => 0
-          }
-
-        case "GPS" =>
-          freq match {
-            case "L2C"        => 34.577472687
-            case "L5Q"        => 12.218264580
-            case _            => 0
-          }
-
-        case _ => 0
-      }
-  }
-
   @deprecated("Duplicates functionality of f()", "logserver-spark 0.2.0")
   def f1: UserDefinedFunction = udf {
     (system: String, glofreq: Int) =>
