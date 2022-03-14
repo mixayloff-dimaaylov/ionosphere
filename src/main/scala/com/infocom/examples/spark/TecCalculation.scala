@@ -16,6 +16,20 @@ object NtFunctions extends Serializable {
    * ПЭС без поправок
    * @param dnt смещение, м
    */
+  def psrNt: UserDefinedFunction = udf {
+    (psr1: Double, psr2: Double, f1: Double, f2: Double, sdcb: Double) =>
+      {
+        val f1_2 = f1 * f1
+        val f2_2 = f2 * f2
+
+        ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (psr2 - psr1 + sdcb)
+      }
+  }
+
+  /**
+   * ПЭС без поправок
+   * @param dnt смещение, м
+   */
   def rawNt: UserDefinedFunction = udf {
     (adr1: Double, adr2: Double, f1: Double, f2: Double, dnt: Double) => {
       val f1_2 = f1 * f1
