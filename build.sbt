@@ -107,7 +107,7 @@ Test / parallelExecution := false
 lazy val root = (project in file(".")).
   configs(IntegrationTest).
   settings(Defaults.itSettings: _*).
-  enablePlugins(AutomateHeaderPlugin).
+  // enablePlugins(AutomateHeaderPlugin).
   enablePlugins(JavaAppPackaging).
   enablePlugins(AssemblyPlugin)
 
