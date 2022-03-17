@@ -10,7 +10,7 @@ val assemblyName = "novatel-streaming-assembly"
 
 ThisBuild / scalaVersion := "2.11.12"
 
-// scalariformSettings
+scalariformAutoformat := false
 
 scalastyleFailOnError := true
 
