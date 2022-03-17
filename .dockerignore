@@ -1,3 +1,10 @@
-# current sbt version conflicts with bloom and metals
+### Ammonite REPL ###
+.ammonite/
+
+### Bloop ###
 .bloop/
+
+### Metals LSP ###
+.metals/
 .project/metals.sbt
+metals.sbt
