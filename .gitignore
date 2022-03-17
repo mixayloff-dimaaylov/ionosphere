@@ -21,6 +21,16 @@ project/plugins/project/
 .scala_dependencies
 .worksheet
 
+### Ammonite REPL ###
+.ammonite/
+
+### Bloop ###
+.bloop/
+
+### Metals LSP ###
+.metals/
+.project/metals.sbt
+metals.sbt
 
 ### SBT ###
 # Simple Build Tool
