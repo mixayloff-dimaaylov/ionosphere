@@ -4,17 +4,17 @@ organization := "com.cgnal"
 
 name := "novatel-streaming"
 
-version in ThisBuild := "1.0"
+ThisBuild / version := "1.0"
 
 val assemblyName = "novatel-streaming-assembly"
 
-scalaVersion in ThisBuild := "2.11.8"
+ThisBuild / scalaVersion := "2.11.12"
 
-scalariformSettings
+// scalariformSettings
 
 scalastyleFailOnError := true
 
-dependencyUpdatesExclusions := moduleFilter(organization = "org.scala-lang")
+dependencyUpdatesFilter -= moduleFilter(organization = "org.scala-lang")
 
 scalacOptions ++= Seq(
   "-deprecation",
@@ -30,7 +30,7 @@ scalacOptions ++= Seq(
 )
 
 wartremoverErrors ++= Seq(
-  Wart.Any2StringAdd,
+  Wart.StringPlusAny,
   Wart.EitherProjectionPartial,
   Wart.Enumeration,
   Wart.Equals,
@@ -39,7 +39,7 @@ wartremoverErrors ++= Seq(
   Wart.IsInstanceOf,
   Wart.JavaConversions,
   Wart.LeakingSealed,
-  Wart.ListOps,
+  Wart.TraversableOps,
   Wart.MutableDataStructures,
   Wart.Null,
   Wart.Option2Iterable,
@@ -86,23 +86,23 @@ libraryDependencies ++= Seq(
 ) ++ assemblyDependencies(assemblyDependenciesScope)
 
 //Trick to make Intellij/IDEA happy
-//We set all provided dependencies to none, so that they are included in the classpath of root module
-libraryDependencies := libraryDependencies.value.map{
-  module =>
-    if (module.configurations.equals(Some("provided"))) {
-      module.copy(configurations = None)
-    } else {
-      module
-    }
-}
+// We set all provided dependencies to none, so that they are included in the classpath of root module
+//libraryDependencies := libraryDependencies.value.map{
+//  module =>
+//    if (module.configurations.equals(Some("provided"))) {
+//      module.copy(configurations = None)
+//    } else {
+//      module
+//    }
+//}
 
 //http://stackoverflow.com/questions/18838944/how-to-add-provided-dependencies-back-to-run-test-tasks-classpath/21803413#21803413
-run in Compile := Defaults.runTask(fullClasspath in Compile, mainClass in(Compile, run), runner in(Compile, run))
+Compile / run := Defaults.runTask(Compile / fullClasspath, Compile / run / mainClass, Compile / run / runner)
 
 //http://stackoverflow.com/questions/27824281/sparksql-missingrequirementerror-when-registering-table
 fork := true
 
-parallelExecution in Test := false
+Test / parallelExecution := false
 
 lazy val root = (project in file(".")).
   configs(IntegrationTest).
@@ -114,28 +114,28 @@ lazy val root = (project in file(".")).
 lazy val projectAssembly = (project in file("assembly")).
   settings(
     exportJars := true,
-    test in assembly := {},
-    assemblyOption in assembly := (assemblyOption in assembly).value.copy(),
-    assemblyMergeStrategy in assembly := {
+    assembly / test := {},
+    assembly / assemblyOption := (assembly / assemblyOption).value,
+    assembly / assemblyMergeStrategy := {
       case PathList("org", "apache", xs @ _*) => MergeStrategy.last
       case "log4j.properties" => MergeStrategy.last
       case "org/apache/spark/unused/UnusedStubClass.class" => MergeStrategy.last
       case x =>
-        val oldStrategy = (assemblyMergeStrategy in assembly).value
+        val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)
     },
-    assemblyJarName in assembly := s"$assemblyName-${version.value}.jar",
+    assembly / assemblyJarName := s"$assemblyName-${version.value}.jar",
     libraryDependencies ++= assemblyDependencies("compile")
   ) dependsOn root settings (
   projectDependencies := {
     Seq(
-      (projectID in root).value.excludeAll(ExclusionRule(organization = "org.apache.spark"),
+      (root / projectID).value.excludeAll(ExclusionRule(organization = "org.apache.spark"),
         if (!isALibrary) ExclusionRule(organization = "org.apache.hadoop") else ExclusionRule())
     )
   })
 
-mappings in Universal := {
-  val universalMappings = (mappings in Universal).value
+Universal / mappings := {
+  val universalMappings = (Universal / mappings).value
   val filtered = universalMappings filter {
     case (f, n) =>
       !n.endsWith(s"${organization.value}.${name.value}-${version.value}.jar")
