@@ -1,4 +1,4 @@
-FROM mozilla/sbt:8u171_0.13.13 AS build
+FROM mozilla/sbt:8u292_1.5.7 AS build
 WORKDIR '/usr/local/src/spark'
 COPY build.sbt .
 COPY project project/
