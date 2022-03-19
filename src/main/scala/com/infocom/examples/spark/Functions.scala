@@ -78,7 +78,8 @@ object Functions extends Serializable {
   def waveLength(f: Double): Double = C / f
 
   def k: UserDefinedFunction = udf {
-    (adr1: Double, adr2: Double, f1: Double, f2: Double, psr1: Double, psr2: Double) => (psr2 - psr1) - (adr2 * waveLength(f2) - adr1 * waveLength(f1))
+    (adr1: Double, adr2: Double, f1: Double, f2: Double, psr1: Double, psr2: Double, dcb: Double)
+      => (psr2 - psr1 + dcb * C) - (adr2 * waveLength(f2) - adr1 * waveLength(f1))
   }
 
   def dnt: UserDefinedFunction = udf {

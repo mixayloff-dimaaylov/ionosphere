@@ -26,18 +26,6 @@ object NtFunctions extends Serializable {
   }
 
   /**
-   * ПЭС с поправками DCB
-   */
-  def dcbNt: UserDefinedFunction = udf {
-    (l1: Double, l2: Double, f1: Double, f2: Double, dcb: Double) => {
-      val f1_2 = f1 * f1
-      val f2_2 = f2 * f2
-
-      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * C * ((l2/f2) - (l1/f1) + dcb)
-    }
-  }
-
-  /**
    * Расчет автокорреляционной функции (АКФ) флуктуаций ПЭС
    *
    * @param seq последовательность delNT
@@ -355,7 +343,7 @@ object TecCalculation extends Serializable {
       .withColumn("f2", f($"system", $"f2", $"glofreq"))
       .select($"time", $"sat", $"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")
       .groupBy($"sat")
-      .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")).as("K"))
+      .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2", $"dcb")).as("K"))
       .select("K")
       .map(r => r.getDouble(0))
 
