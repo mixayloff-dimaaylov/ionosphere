@@ -313,14 +313,14 @@ object TecCalculation extends Serializable {
          |  any(system) AS system,
          |  any(glofreq) AS glofreq,
          |  '$sigcomb' AS sigcomb,
-         |  ifNull(any(dcb), 0) AS dcb
+         |  ifNull(any(sdcb), 0) AS sdcb
          |FROM
          |  rawdata.range
          |LEFT OUTER JOIN
-         |  misc.dcb
-         |  ON (range.sat = dcb.sat)
-         |  AND (range.system = dcb.system)
-         |  AND (sigcomb = dcb.sigcomb)
+         |  misc.sdcb
+         |  ON (range.sat = sdcb.sat)
+         |  AND (range.system = sdcb.system)
+         |  AND (sigcomb = sdcb.sigcomb)
          |WHERE
          |  sat='$sat' AND d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
          |  and freq in ('$f1Name', '$f2Name')
@@ -343,7 +343,7 @@ object TecCalculation extends Serializable {
       .withColumn("f2", f($"system", $"f2", $"glofreq"))
       .select($"time", $"sat", $"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")
       .groupBy($"sat")
-      .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2", $"dcb")).as("K"))
+      .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2", $"sdcb")).as("K"))
       .select("K")
       .map(r => r.getDouble(0))
 
