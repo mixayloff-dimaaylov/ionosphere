@@ -16,6 +16,20 @@ object NtFunctions extends Serializable {
    * ПЭС без поправок
    * @param dnt смещение, м
    */
+  def psrNt: UserDefinedFunction = udf {
+    (psr1: Double, psr2: Double, f1: Double, f2: Double, sdcb: Double) =>
+      {
+        val f1_2 = f1 * f1
+        val f2_2 = f2 * f2
+
+        ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (psr2 - psr1 + sdcb)
+      }
+  }
+
+  /**
+   * ПЭС без поправок
+   * @param dnt смещение, м
+   */
   def rawNt: UserDefinedFunction = udf {
     (adr1: Double, adr2: Double, f1: Double, f2: Double, dnt: Double) => {
       val f1_2 = f1 * f1
@@ -312,9 +326,15 @@ object TecCalculation extends Serializable {
          |  anyIf(freq, freq = '$f2Name') AS f2,
          |  any(system) AS system,
          |  any(glofreq) AS glofreq,
-         |  '$sigcomb' AS sigcomb
+         |  '$sigcomb' AS sigcomb,
+         |  ifNull(any(sdcb), 0) AS sdcb
          |FROM
          |  rawdata.range
+         |LEFT OUTER JOIN
+         |  misc.sdcb
+         |  ON (range.sat = sdcb.sat)
+         |  AND (range.system = sdcb.system)
+         |  AND (sigcomb = sdcb.sigcomb)
          |WHERE
          |  sat='$sat' AND d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
          |  and freq in ('$f1Name', '$f2Name')
@@ -335,9 +355,9 @@ object TecCalculation extends Serializable {
     val newDNT = range
       .withColumn("f1", f($"system", $"f1", $"glofreq"))
       .withColumn("f2", f($"system", $"f2", $"glofreq"))
-      .select($"time", $"sat", $"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")
+      .select($"time", $"sat", $"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2", $"sdcb")
       .groupBy($"sat")
-      .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")).as("K"))
+      .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2", $"sdcb")).as("K"))
       .select("K")
       .map(r => r.getDouble(0))
 
@@ -369,9 +389,15 @@ object TecCalculation extends Serializable {
          |  anyIf(freq, freq = '$f2Name') AS f2,
          |  any(system) AS system,
          |  any(glofreq) AS glofreq,
-         |  '$sigcomb' AS sigcomb
+         |  '$sigcomb' AS sigcomb,
+         |  ifNull(any(sdcb), 0) AS sdcb
          |FROM
          |  rawdata.range
+         |LEFT OUTER JOIN
+         |  misc.sdcb
+         |  ON (range.sat = sdcb.sat)
+         |  AND (range.system = sdcb.system)
+         |  AND (sigcomb = sdcb.sigcomb)
          |WHERE
          |  sat='$sat' AND d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
          |  and freq in ('$f1Name', '$f2Name')
@@ -396,7 +422,8 @@ object TecCalculation extends Serializable {
 
     val tecRange = range
       .withColumn("nt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2", $"DNT"))
-      .select("time", "sat", "sigcomb", "f1", "f2", "nt")
+      .withColumn("psrNt", NtFunctions.psrNt($"psr1", $"psr2", $"f1", $"f2", $"sdcb"))
+      .select("time", "sat", "sigcomb", "f1", "f2", "nt", "psrNt")
 
     //tecRange.show()
 
