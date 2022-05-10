@@ -1,24 +1,9 @@
 package com.infocom.examples.spark.schema
 
-import com.infocom.examples.spark.StreamFunctions
 import com.infocom.examples.spark.data._
 
 object ClickHouse {
   /**
-   * CREATE TABLE rawdata.range (
-   *   time UInt64,
-   *   adr Float64,
-   *   psr Float64,
-   *   cno Float64,
-   *   locktime Float64,
-   *   sat String,
-   *   system String,
-   *   freq String,
-   *   glofreq Int32,
-   *   prn Int32,
-   *   d Date MATERIALIZED toDate(round(time / 1000))
-   * ) ENGINE = MergeTree(d, (time, sat, freq), 8192)
-   *
    * @param time Время, мс
    * @param adr ADR
    * @param psr PSR
@@ -49,17 +34,6 @@ object ClickHouse {
   }
 
   /**
-   * CREATE TABLE rawdata.ismredobs (
-   *   time UInt64,
-   *   totals4 Float64,
-   *   sat String,
-   *   system String,
-   *   freq String,
-   *   glofreq Int32,
-   *   prn Int32,
-   *   d Date MATERIALIZED toDate(round(time / 1000))
-   * ) ENGINE = MergeTree(d, (time, sat, freq), 8192)
-   *
    * @param time Время, мс
    * @param totals4 S4
    * @param sat Наименование спутника
@@ -81,17 +55,6 @@ object ClickHouse {
   )
 
   /**
-   * CREATE TABLE rawdata.ismdetobs (
-   *   time UInt64,
-   *   power Float64,
-   *   sat String,
-   *   system String,
-   *   freq String,
-   *   glofreq Int32,
-   *   prn Int32,
-   *   d Date MATERIALIZED toDate(round(time / 1000))
-   * ) ENGINE = MergeTree(d, (time, sat, freq), 8192)
-   *
    * @param time Время, мс
    * @param power S4
    * @param sat Наименование спутника
@@ -113,18 +76,6 @@ object ClickHouse {
   )
 
   /**
-   * CREATE TABLE rawdata.ismrawtec (
-   *   time UInt64,
-   *   tec Float64,
-   *   sat String,
-   *   system String,
-   *   primaryfreq String,
-   *   secondaryfreq String,
-   *   glofreq Int32,
-   *   prn Int32,
-   *   d Date MATERIALIZED toDate(round(time / 1000))
-   * ) ENGINE = MergeTree(d, (time, sat, primaryfreq, secondaryfreq), 8192)
-   *
    * @param time Время, мс
    * @param tec ПЭС
    * @param sat Наименование спутника
@@ -148,35 +99,24 @@ object ClickHouse {
   )
 
   /**
-   * CREATE TABLE rawdata.satxyz2 (
-   *   time UInt64,
-   *   geopoint UInt64,
-   *   ionpoint UInt64,
-   *   elevation Float64,
-   *   sat String,
-   *   system String,
-   *   prn Int32,
-   *   d Date MATERIALIZED toDate(round(time / 1000))
-   * ) ENGINE = MergeTree(d, (time, sat), 8192)
-   *
    * @param time
-   * @param geopoint
-   * @param ionpoint
-   * @param elevation
+   * @param X
+   * @param Y
+   * @param Z
    * @param sat
    * @param system
    * @param prn
    */
-  case class Satxyz2Row(time: Long, geopoint: Long, ionpoint: Long, elevation: Double, sat: String, system: String, prn: Int)
+  case class Satxyz2Row(time: Long, X: Double, Y: Double, Z: Double, sat: String, system: String, prn: Int)
 
   def toRow(dp: DataPointSatxyz2): Satxyz2Row = {
     System.out.println("Get DataPointSatxyz2")
 
     Satxyz2Row(
       dp.Timestamp,
-      StreamFunctions.satGeoPoint(dp),
-      StreamFunctions.satIonPoint(dp),
-      StreamFunctions.satElevation(dp),
+      dp.X,
+      dp.Y,
+      dp.Z,
       dp.Satellite,
       dp.NavigationSystem.toString,
       dp.Prn

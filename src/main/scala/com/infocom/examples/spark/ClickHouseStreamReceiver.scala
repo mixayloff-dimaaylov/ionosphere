@@ -4,9 +4,14 @@ import java.util.{Properties, UUID}
 import com.infocom.examples.spark.data._
 import com.infocom.examples.spark.schema.ClickHouse._
 import com.infocom.examples.spark.serialization._
+import com.infocom.examples.spark.{StreamFunctions => SF}
 import org.apache.kafka.clients.consumer.ConsumerRecord
-import org.apache.spark.SparkConf
+
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.expressions.UserDefinedFunction
+import org.apache.spark.sql.functions.udf
+
+import org.apache.spark.SparkConf
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.dstream.{ DStream, InputDStream }
 import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
@@ -15,6 +20,24 @@ import org.apache.spark.streaming.kafka010._
 import scala.reflect._
 
 object StreamReceiver {
+  private def satGeoPoint: UserDefinedFunction = udf {
+    (X: Double, Y: Double, Z: Double) => {
+      SF.satGeoPointRaw(X, Y, Z)
+    }
+  }
+
+  private def satIonPoint: UserDefinedFunction = udf {
+    (X: Double, Y: Double, Z: Double) => {
+      SF.satIonPointRaw(X, Y, Z)
+    }
+  }
+
+  private def satElevation: UserDefinedFunction = udf {
+    (X: Double, Y: Double, Z: Double) => {
+      SF.satElevationRaw(X, Y, Z)
+    }
+  }
+
   def main(args: Array[String]): Unit = {
     System.out.println("Run main")
 
@@ -103,9 +126,16 @@ object StreamReceiver {
 
     // SATXYZ2
 
-    createKafkaStream[DataPointSatxyz2]("datapoint-raw-satxyz2") map toRow foreachRDD {
-      _.toDF.write.mode("append").jdbc(jdbcUri, "rawdata.satxyz2", jdbcProps)
-    }
+    createKafkaStream[DataPointSatxyz2]("datapoint-raw-satxyz2").
+      map(toRow).
+      foreachRDD({
+        _.toDF.
+          withColumn("geopoint", satGeoPoint($"X", $"Y", $"Z")).
+          withColumn("ionpoint", satIonPoint($"X", $"Y", $"Z")).
+          withColumn("elevation", satElevation($"X", $"Y", $"Z")).
+          select($"time", $"geopoint", $"ionpoint", $"elevation", $"sat", $"system", $"prn").
+          write.mode("append").jdbc(jdbcUri, "rawdata.satxyz2", jdbcProps)
+      })
 
     ssc.start()
     System.out.println("Start StreamingContext")
