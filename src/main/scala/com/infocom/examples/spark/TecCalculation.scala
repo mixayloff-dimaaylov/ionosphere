@@ -514,7 +514,8 @@ object TecCalculation extends Serializable {
       jdbcProps
     )
 
-    val time = rawData.select("time").map(r => r.getDecimal(0)).collect().toSeq
+    @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
+    var time = rawData.select("time").map(r => r.getDecimal(0)).collect().toSeq
     val nt = rawData.select("nt").map(r => r.getDouble(0)).collect().toSeq
 
     val filterOrder = 6
@@ -523,14 +524,23 @@ object TecCalculation extends Serializable {
     @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
     val zeroSeq = mutable.Seq.fill[Double](filterOrder)(zero)
     val NTSeq = NTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder, zero) ++ nt
-    val avgNTSeq = avgNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
-    val delNtSeq = delNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
+    var avgNTSeq = avgNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
+    var delNtSeq = delNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
 
     for (i <- 6 until NTSeq.length) {
       val nt7 = Seq(NTSeq(i), NTSeq(i - 1), NTSeq(i - 2), NTSeq(i - 3), NTSeq(i - 4), NTSeq(i - 5), NTSeq(i - 6))
 
       avgNTSeq(i) = DigitalFilters.avgNt(nt7, Seq(avgNTSeq(i - 1), avgNTSeq(i - 2), avgNTSeq(i - 3), avgNTSeq(i - 4), avgNTSeq(i - 5), avgNTSeq(i - 6)))
       delNtSeq(i) = DigitalFilters.delNt(nt7, Seq(delNtSeq(i - 1), delNtSeq(i - 2), delNtSeq(i - 3), delNtSeq(i - 4), delNtSeq(i - 5), delNtSeq(i - 6)))
+    }
+
+    // TODO: Find a more mathematically correct solution to the problem of
+    // spikes in general
+    if(!NTMap.contains((sat, sigcomb)))
+    {
+      time = time.drop(300)
+      avgNTSeq = avgNTSeq.drop(300)
+      delNtSeq = delNtSeq.drop(300)
     }
 
     NTMap((sat, sigcomb)) = NTSeq.takeRight(filterOrder)
