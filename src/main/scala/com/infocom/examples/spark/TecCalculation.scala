@@ -271,6 +271,9 @@ object TecCalculation extends Serializable {
 
     // выкинуть все значения, которых нет в range
     DNTMap --= (DNTMap -- rangeList).keys
+    NTMap    --= (NTMap -- rangeList).keys
+    avgNTMap --= (avgNTMap -- rangeList).keys
+    delNTMap --= (delNTMap -- rangeList).keys
 
     range.collect().foreach(row => {
       val sat = row(0).toString
@@ -514,7 +517,8 @@ object TecCalculation extends Serializable {
       jdbcProps
     )
 
-    val time = rawData.select("time").map(r => r.getDecimal(0)).collect().toSeq
+    @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
+    var time = rawData.select("time").map(r => r.getDecimal(0)).collect().toSeq
     val nt = rawData.select("nt").map(r => r.getDouble(0)).collect().toSeq
 
     val filterOrder = 6
@@ -523,8 +527,8 @@ object TecCalculation extends Serializable {
     @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
     val zeroSeq = mutable.Seq.fill[Double](filterOrder)(zero)
     val NTSeq = NTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder, zero) ++ nt
-    val avgNTSeq = avgNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
-    val delNtSeq = delNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
+    var avgNTSeq = avgNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
+    var delNtSeq = delNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
 
     for (i <- 6 until NTSeq.length) {
       val nt7 = Seq(NTSeq(i), NTSeq(i - 1), NTSeq(i - 2), NTSeq(i - 3), NTSeq(i - 4), NTSeq(i - 5), NTSeq(i - 6))
@@ -533,31 +537,37 @@ object TecCalculation extends Serializable {
       delNtSeq(i) = DigitalFilters.delNt(nt7, Seq(delNtSeq(i - 1), delNtSeq(i - 2), delNtSeq(i - 3), delNtSeq(i - 4), delNtSeq(i - 5), delNtSeq(i - 6)))
     }
 
+    // TODO: Find a more mathematically correct solution to the problem of
+    // spikes in general
+    if(NTMap.contains((sat, sigcomb)))
+    {
+      val df = (time, avgNTSeq.drop(filterOrder), delNtSeq.drop(filterOrder))
+        .zipped.toSeq.toDF("time", "avgNT", "delNT")
+        //df.show
+
+      val result = rawData.join(df, Seq("time")).orderBy("time")
+      //result.show
+
+      //        CREATE TABLE computed.NTDerivatives (
+      //          time UInt64,
+      //          sat String,
+      //          sigcomb String,
+      //          f1 Float64,
+      //          f2 Float64,
+      //          avgNT Float64,
+      //          delNT Float64,
+      //          d Date MATERIALIZED toDate(round(time / 1000))
+      //        ) ENGINE = ReplacingMergeTree(d, (time, sat, sigcomb), 8192)
+      //        TTL d + INTERVAL 2 Week DELETE
+
+      result
+        .select("time", "sat", "sigcomb", "f1", "f2", "avgNT", "delNT")
+        .write.mode("append").jdbc(jdbcUri, "computed.NTDerivatives", jdbcProps)
+    }
+
     NTMap((sat, sigcomb)) = NTSeq.takeRight(filterOrder)
     avgNTMap((sat, sigcomb)) = avgNTSeq.takeRight(filterOrder)
     delNTMap((sat, sigcomb)) = delNtSeq.takeRight(filterOrder)
-
-    val df = (time, avgNTSeq.drop(filterOrder), delNtSeq.drop(filterOrder)).zipped.toSeq.toDF("time", "avgNT", "delNT")
-    //df.show
-
-    val result = rawData.join(df, Seq("time")).orderBy("time")
-    //result.show
-
-    //        CREATE TABLE computed.NTDerivatives (
-    //          time UInt64,
-    //          sat String,
-    //          sigcomb String,
-    //          f1 Float64,
-    //          f2 Float64,
-    //          avgNT Float64,
-    //          delNT Float64,
-    //          d Date MATERIALIZED toDate(round(time / 1000))
-    //        ) ENGINE = ReplacingMergeTree(d, (time, sat, sigcomb), 8192)
-    //        TTL d + INTERVAL 2 Week DELETE
-
-    result
-      .select("time", "sat", "sigcomb", "f1", "f2", "avgNT", "delNT")
-      .write.mode("append").jdbc(jdbcUri, "computed.NTDerivatives", jdbcProps)
   }
 
   def runJobXz1(spark: SparkSession, from: Long, to: Long): Unit = {
