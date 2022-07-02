@@ -536,38 +536,35 @@ object TecCalculation extends Serializable {
 
     // TODO: Find a more mathematically correct solution to the problem of
     // spikes in general
-    if(!NTMap.contains((sat, sigcomb)))
+    if(NTMap.contains((sat, sigcomb)))
     {
-      time = time.drop(300)
-      avgNTSeq = avgNTSeq.drop(300)
-      delNtSeq = delNtSeq.drop(300)
+      val df = (time, avgNTSeq.drop(filterOrder), delNtSeq.drop(filterOrder))
+        .zipped.toSeq.toDF("time", "avgNT", "delNT")
+        //df.show
+
+      val result = rawData.join(df, Seq("time")).orderBy("time")
+      //result.show
+
+      //        CREATE TABLE computed.NTDerivatives (
+      //          time UInt64,
+      //          sat String,
+      //          sigcomb String,
+      //          f1 Float64,
+      //          f2 Float64,
+      //          avgNT Float64,
+      //          delNT Float64,
+      //          d Date MATERIALIZED toDate(round(time / 1000))
+      //        ) ENGINE = ReplacingMergeTree(d, (time, sat, sigcomb), 8192)
+      //        TTL d + INTERVAL 2 Week DELETE
+
+      result
+        .select("time", "sat", "sigcomb", "f1", "f2", "avgNT", "delNT")
+        .write.mode("append").jdbc(jdbcUri, "computed.NTDerivatives", jdbcProps)
     }
 
     NTMap((sat, sigcomb)) = NTSeq.takeRight(filterOrder)
     avgNTMap((sat, sigcomb)) = avgNTSeq.takeRight(filterOrder)
     delNTMap((sat, sigcomb)) = delNtSeq.takeRight(filterOrder)
-
-    val df = (time, avgNTSeq.drop(filterOrder), delNtSeq.drop(filterOrder)).zipped.toSeq.toDF("time", "avgNT", "delNT")
-    //df.show
-
-    val result = rawData.join(df, Seq("time")).orderBy("time")
-    //result.show
-
-    //        CREATE TABLE computed.NTDerivatives (
-    //          time UInt64,
-    //          sat String,
-    //          sigcomb String,
-    //          f1 Float64,
-    //          f2 Float64,
-    //          avgNT Float64,
-    //          delNT Float64,
-    //          d Date MATERIALIZED toDate(round(time / 1000))
-    //        ) ENGINE = ReplacingMergeTree(d, (time, sat, sigcomb), 8192)
-    //        TTL d + INTERVAL 2 Week DELETE
-
-    result
-      .select("time", "sat", "sigcomb", "f1", "f2", "avgNT", "delNT")
-      .write.mode("append").jdbc(jdbcUri, "computed.NTDerivatives", jdbcProps)
   }
 
   def runJobXz1(spark: SparkSession, from: Long, to: Long): Unit = {
