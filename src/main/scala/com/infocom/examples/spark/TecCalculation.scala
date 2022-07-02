@@ -271,6 +271,9 @@ object TecCalculation extends Serializable {
 
     // выкинуть все значения, которых нет в range
     DNTMap --= (DNTMap -- rangeList).keys
+    NTMap    --= (NTMap -- rangeList).keys
+    avgNTMap --= (avgNTMap -- rangeList).keys
+    delNTMap --= (delNTMap -- rangeList).keys
 
     range.collect().foreach(row => {
       val sat = row(0).toString
