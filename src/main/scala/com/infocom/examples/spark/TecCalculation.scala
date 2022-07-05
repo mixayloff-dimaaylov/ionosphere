@@ -201,12 +201,9 @@ object TecCalculation extends Serializable {
     fire(args(1))
   }
 
-  private def mainJob(spark: SparkSession, from: Long, to: Long): Unit = {
-    val delta = to - from
-    println(s"from $from to $to ($delta ms) ")
-
+  private def mainJob(spark: SparkSession, from: Long): Long = {
     //runJobCorrelation(spark, from, to)
-    runJob(spark, from, to)
+    runJob(spark, from)
   }
 
   @SuppressWarnings(Array("org.wartremover.warts.Var"))
@@ -218,10 +215,7 @@ object TecCalculation extends Serializable {
     //Возьмем время минуту назад как начальная инициализация
     var from = new java.util.Date().getTime / 1000 * 1000 - 60000
     while (true) {
-      //Сделаем отставание в 20 секунд, что бы БД успела обработать все
-      val to = new java.util.Date().getTime / 1000 * 1000 - 20000
-      mainJob(spark, from, to)
-      from = to + 1
+      from = mainJob(spark, from) + 1
       println(s"sleep $repeat ms")
       Thread.sleep(repeat.toLong)
     }
@@ -240,8 +234,9 @@ object TecCalculation extends Serializable {
     SparkSession.builder().config(conf).getOrCreate()
   }
 
-  def runJob(spark: SparkSession, from: Long, to: Long): Unit = {
+  def runJob(spark: SparkSession, from: Long): Long = {
     val sc = spark.sqlContext
+    import spark.implicits._
 
     val range = sc.read.jdbc(
       jdbcUri,
@@ -249,11 +244,12 @@ object TecCalculation extends Serializable {
          |(
          |select
          |  sat,
-         |  freq
+         |  freq,
+         |  max(time) as lseen
          |from
          |  rawdata.range
          |where
-         |  d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
+         |  d >= toDate($from/1000) AND time >= $from
          |  and freq in('L2CA', 'L2C', 'L2P', 'L5Q')
          |group by
          |  sat,
@@ -265,11 +261,21 @@ object TecCalculation extends Serializable {
       jdbcProps
     )
 
+    val to: Long =
+      range
+        .select($"lseen")
+        .agg(min($"lseen"))
+        .collect()
+        .map((r: Row) => (r.getDecimal(0).longValue()))
+        .toSeq(0)
+
     val rangeList =
       range
         .collect()
         .map((r: Row) => (r.getString(0), "L1CA+" + r.getString(1)))
         .toSeq
+
+    println(s"from $from to $to (${to - from} ms) ")
 
     // выкинуть все значения, которых нет в range
     DNTMap --= (DNTMap -- rangeList).keys
@@ -296,6 +302,8 @@ object TecCalculation extends Serializable {
     runJobXz1(spark, from, to)
     runJobS4(spark, from, to)
     //runJobCorrelation(spark, from, to)
+
+    to
   }
 
   def getDNT(sat: String, f1Name: String, f2Name: String): Double = {
