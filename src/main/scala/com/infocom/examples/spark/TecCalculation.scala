@@ -201,30 +201,32 @@ object TecCalculation extends Serializable {
     fire(args(1))
   }
 
-  private def mainJob(from: Long, to: Long): Unit = {
+  private def mainJob(spark: SparkSession, from: Long, to: Long): Unit = {
     val delta = to - from
     println(s"from $from to $to ($delta ms) ")
 
-    val spark = getOrCreateSession("TEC Range Calculations")
     //runJobCorrelation(spark, from, to)
     runJob(spark, from, to)
-    spark.close()
   }
 
   @SuppressWarnings(Array("org.wartremover.warts.Var"))
   @SuppressWarnings(Array("org.wartremover.warts.While"))
   def fire(repeat: String): Unit = {
+    val spark = getOrCreateSession("TEC Range Calculations")
+
     // "/ 1000 * 1000" - выравнивание по целым секундам. Для S4 и аналогичным.
     //Возьмем время минуту назад как начальная инициализация
     var from = new java.util.Date().getTime / 1000 * 1000 - 60000
     while (true) {
       //Сделаем отставание в 20 секунд, что бы БД успела обработать все
       val to = new java.util.Date().getTime / 1000 * 1000 - 20000
-      mainJob(from, to)
+      mainJob(spark, from, to)
       from = to + 1
       println(s"sleep $repeat ms")
       Thread.sleep(repeat.toLong)
     }
+
+    spark.close()
   }
 
   private def getOrCreateSession(name: String): SparkSession = {
