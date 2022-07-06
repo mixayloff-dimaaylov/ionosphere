@@ -295,8 +295,8 @@ object TecCalculation extends Serializable {
         DNTMap += newDNTitem
       }
 
-      sigComb = runJobNt(spark, from, to, sat, f2Name)
-      runJobDerivatives(spark, from, to, sat, sigComb)
+      val Nt = runJobNt(spark, from, to, sat, f2Name)
+      runJobDerivatives(spark, Nt, sat, sigComb)
     })
 
     runJobXz1(spark, from, to)
@@ -377,7 +377,7 @@ object TecCalculation extends Serializable {
     newDNT.collect().toSeq(0)
   }
 
-  def runJobNt(spark: SparkSession, from: Long, to: Long, sat: String, f2Name: String): String = {
+  def runJobNt(spark: SparkSession, from: Long, to: Long, sat: String, f2Name: String): DataFrame = {
     val f1Name = "L1CA"
     val sigcomb = s"$f1Name+$f2Name"
     println(s"Nt for $sat & $sigcomb")
@@ -453,7 +453,7 @@ object TecCalculation extends Serializable {
 
     tecRange.write.mode("append").jdbc(jdbcUri, "computed.NT", jdbcProps)
 
-    sigcomb
+    tecRange
   }
 
   def runJobS4(spark: SparkSession, from: Long, to: Long): Unit = {
@@ -498,34 +498,13 @@ object TecCalculation extends Serializable {
       .write.mode("append").jdbc(jdbcUri, "computed.s4", jdbcProps)
   }
 
-  def runJobDerivatives(spark: SparkSession, from: Long, to: Long, sat: String, sigcomb: String): Unit = {
-    println(s"Derivatives for $sat & $sigcomb")
-
+  def runJobDerivatives(spark: SparkSession, Nt: DataFrame, sat: String, sigcomb: String): Unit = {
     val sc = spark.sqlContext
     import spark.implicits._
 
-    val rawData = sc.read.jdbc(
-      jdbcUri,
-      s"""
-         |(
-         |SELECT
-         |	time,
-         |	sat,
-         |	sigcomb,
-         |  f1,
-         |  f2,
-         |	nt
-         |FROM
-         |	computed.NT
-         |WHERE
-         |  sat='$sat' AND d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
-         |  and sigcomb='$sigcomb'
-         |ORDER BY
-         |  time
-         |)
-        """.stripMargin,
-      jdbcProps
-    )
+    println(s"Derivatives for $sat & $sigcomb")
+
+    val rawData = Nt
 
     @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
     var time = rawData.select("time").map(r => r.getDecimal(0)).collect().toSeq
