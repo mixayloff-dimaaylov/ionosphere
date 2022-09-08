@@ -245,7 +245,7 @@ object TecCalculation extends Serializable {
          |select
          |  sat,
          |  freq,
-         |  max(time) as lseen
+         |  ifNull(max(time), $from) as lseen
          |from
          |  rawdata.range
          |where
