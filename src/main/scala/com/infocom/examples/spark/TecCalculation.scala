@@ -301,6 +301,7 @@ object TecCalculation extends Serializable {
 
     runJobXz1(spark, from, to)
     runJobS4pwr(spark, from, to)
+    runJobS4(spark, from, to)
     //runJobCorrelation(spark, from, to)
 
     to
@@ -502,6 +503,47 @@ object TecCalculation extends Serializable {
       .withColumnRenamed("time1s", "time")
       .select("time", "sat", "freq", "s4")
       .write.mode("append").jdbc(jdbcUri, "computed.s4pwr", jdbcProps)
+  }
+
+  def runJobS4(spark: SparkSession, from: Long, to: Long): Unit = {
+    println(s"S_4 sigPhi")
+
+    val sc = spark.sqlContext
+
+    val result = sc.read.jdbc(
+      jdbcUri,
+      s"""
+         |(
+         |SELECT
+         |  time,
+         |  sat,
+         |  sigcomb,
+         |  sqrt(1 - exp(-2 * pow(any(sigPhi), 2))) as S4
+         |FROM
+         |  computed.xz1
+         |WHERE
+         |  d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
+         |GROUP BY
+         |  time,
+         |  sat,
+         |  sigcomb
+         |)
+        """.stripMargin,
+      jdbcProps
+    )
+
+    //CREATE TABLE computed.s4 (
+    //  time UInt64,
+    //  sat String,
+    //  sigcomb String,
+    //  s4 Float64,
+    //  d Date MATERIALIZED toDate(round(time / 1000))
+    //) ENGINE = ReplacingMergeTree(d, (time, sat, freq), 8192)
+    //TTL d + INTERVAL 2 Week DELETE
+
+    result
+      .select("time", "sat", "sigcomb", "s4")
+      .write.mode("append").jdbc(jdbcUri, "computed.s4", jdbcProps)
   }
 
   def runJobDerivatives(spark: SparkSession, from: Long, to: Long, sat: String, sigcomb: String): Unit = {
