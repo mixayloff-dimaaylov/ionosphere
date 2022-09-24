@@ -300,7 +300,7 @@ object TecCalculation extends Serializable {
     })
 
     runJobXz1(spark, from, to)
-    runJobS4(spark, from, to)
+    runJobS4pwr(spark, from, to)
     //runJobCorrelation(spark, from, to)
 
     to
@@ -456,8 +456,14 @@ object TecCalculation extends Serializable {
     sigcomb
   }
 
-  def runJobS4(spark: SparkSession, from: Long, to: Long): Unit = {
-    println(s"S4")
+  /*
+   NOTE: S_4 is better to calculate according to the formula from Sigma_Phi in
+   order to avoid the influence of multipath propagation
+
+   May be *deprecated* in future.
+   */
+  def runJobS4pwr(spark: SparkSession, from: Long, to: Long): Unit = {
+    println(s"S_4 pwr")
 
     val sc = spark.sqlContext
 
@@ -483,7 +489,7 @@ object TecCalculation extends Serializable {
       jdbcProps
     )
 
-    //CREATE TABLE computed.s4 (
+    //CREATE TABLE computed.s4pwr (
     //  time UInt64,
     //  sat String,
     //  freq String,
@@ -495,7 +501,7 @@ object TecCalculation extends Serializable {
     result
       .withColumnRenamed("time1s", "time")
       .select("time", "sat", "freq", "s4")
-      .write.mode("append").jdbc(jdbcUri, "computed.s4", jdbcProps)
+      .write.mode("append").jdbc(jdbcUri, "computed.s4pwr", jdbcProps)
   }
 
   def runJobDerivatives(spark: SparkSession, from: Long, to: Long, sat: String, sigcomb: String): Unit = {
