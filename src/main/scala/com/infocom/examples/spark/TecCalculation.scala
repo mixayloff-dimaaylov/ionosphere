@@ -300,6 +300,7 @@ object TecCalculation extends Serializable {
     })
 
     runJobXz1(spark, from, to)
+    runJobS4pwr(spark, from, to)
     runJobS4(spark, from, to)
     //runJobCorrelation(spark, from, to)
 
@@ -456,8 +457,14 @@ object TecCalculation extends Serializable {
     sigcomb
   }
 
-  def runJobS4(spark: SparkSession, from: Long, to: Long): Unit = {
-    println(s"S4")
+  /*
+   NOTE: S_4 is better to calculate according to the formula from Sigma_Phi in
+   order to avoid the influence of multipath propagation
+
+   May be *deprecated* in future.
+   */
+  def runJobS4pwr(spark: SparkSession, from: Long, to: Long): Unit = {
+    println(s"S_4 pwr")
 
     val sc = spark.sqlContext
 
@@ -483,7 +490,7 @@ object TecCalculation extends Serializable {
       jdbcProps
     )
 
-    //CREATE TABLE computed.s4 (
+    //CREATE TABLE computed.s4pwr (
     //  time UInt64,
     //  sat String,
     //  freq String,
@@ -495,6 +502,47 @@ object TecCalculation extends Serializable {
     result
       .withColumnRenamed("time1s", "time")
       .select("time", "sat", "freq", "s4")
+      .write.mode("append").jdbc(jdbcUri, "computed.s4pwr", jdbcProps)
+  }
+
+  def runJobS4(spark: SparkSession, from: Long, to: Long): Unit = {
+    println(s"S_4 sigPhi")
+
+    val sc = spark.sqlContext
+
+    val result = sc.read.jdbc(
+      jdbcUri,
+      s"""
+         |(
+         |SELECT
+         |  time,
+         |  sat,
+         |  sigcomb,
+         |  sqrt(1 - exp(-2 * pow(any(sigPhi), 2))) as S4
+         |FROM
+         |  computed.xz1
+         |WHERE
+         |  d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
+         |GROUP BY
+         |  time,
+         |  sat,
+         |  sigcomb
+         |)
+        """.stripMargin,
+      jdbcProps
+    )
+
+    //CREATE TABLE computed.s4 (
+    //  time UInt64,
+    //  sat String,
+    //  sigcomb String,
+    //  s4 Float64,
+    //  d Date MATERIALIZED toDate(round(time / 1000))
+    //) ENGINE = ReplacingMergeTree(d, (time, sat, freq), 8192)
+    //TTL d + INTERVAL 2 Week DELETE
+
+    result
+      .select("time", "sat", "sigcomb", "s4")
       .write.mode("append").jdbc(jdbcUri, "computed.s4", jdbcProps)
   }
 
