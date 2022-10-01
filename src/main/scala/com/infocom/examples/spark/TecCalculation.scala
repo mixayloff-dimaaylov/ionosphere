@@ -135,7 +135,7 @@ object SigNtFunctions extends Serializable {
    *
    */
   def sigPhi(sigNT: Double, f: Double): Double = {
-    10e16 * 80.8 * math.Pi * sigNT / (C * f)
+    1e16 * 80.8 * math.Pi * sigNT / (C * f)
   }
 
   /**
