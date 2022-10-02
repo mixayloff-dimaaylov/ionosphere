@@ -135,7 +135,7 @@ object SigNtFunctions extends Serializable {
    *
    */
   def sigPhi(sigNT: Double, f: Double): Double = {
-    10e16 * 80.8 * math.Pi * sigNT / (C * f)
+    1e16 * 80.8 * math.Pi * sigNT / (C * f)
   }
 
   /**
@@ -476,9 +476,9 @@ object TecCalculation extends Serializable {
          |  toUInt64(floor(time/1000,0)*1000) as time1s,
          |  sat,
          |  freq,
-         |  sqrt((avg(pow(exp10(cno/10),2)) - pow(avg(exp10(cno/10)),2)) / pow(avg(exp10(cno/10)),2)) as S4
+         |  sqrt((avg(pow(power,2)) - pow(avg(power),2)) / pow(avg(power),2)) as S4
          |FROM
-         |  rawdata.range
+         |  rawdata.ismdetobs
          |WHERE
          |  d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
          |GROUP BY
