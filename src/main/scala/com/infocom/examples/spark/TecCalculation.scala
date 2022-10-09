@@ -300,6 +300,7 @@ object TecCalculation extends Serializable {
     })
 
     runJobXz1(spark, from, to)
+    runJobS4cno(spark, from, to)
     runJobS4pwr(spark, from, to)
     runJobS4(spark, from, to)
     //runJobCorrelation(spark, from, to)
@@ -455,6 +456,54 @@ object TecCalculation extends Serializable {
     tecRange.write.mode("append").jdbc(jdbcUri, "computed.NT", jdbcProps)
 
     sigcomb
+  }
+
+  /*
+   NOTE: S_4 is better to calculate according to the formula from Sigma_Phi in
+   order to avoid the influence of multipath propagation
+
+   May be *deprecated* in future.
+   */
+  def runJobS4cno(spark: SparkSession, from: Long, to: Long): Unit = {
+    println(s"S_4 cno")
+
+    val sc = spark.sqlContext
+
+    val result = sc.read.jdbc(
+      jdbcUri,
+      s"""
+         |(
+         |SELECT
+         |  toUInt64(floor(time/1000,0)*1000) as time1s,
+         |  sat,
+         |  freq,
+         |  sqrt((avg(pow(exp10(cno/10),2)) - pow(avg(exp10(cno/10)),2)) / pow(avg(exp10(cno/10)),2)) as S4
+         |FROM
+         |  rawdata.range
+         |WHERE
+         |  d BETWEEN toDate($from/1000) AND toDate($to/1000) AND time BETWEEN $from AND $to
+         |GROUP BY
+         |  floor(time/1000,0),
+         |  sat,
+         |  freq
+         |)
+        """.stripMargin,
+      jdbcProps
+    )
+
+    //CREATE TABLE computed.s4cno (
+    //  time UInt64,
+    //  sat String,
+    //  freq String,
+    //  s4 Float64,
+    //  d Date MATERIALIZED toDate(round(time / 1000))
+    //) ENGINE = ReplacingMergeTree(d, (time, sat, freq), 8192)
+    //TTL d + INTERVAL 2 Week DELETE
+
+    result
+      .withColumnRenamed("time1s", "time")
+      .select("time", "sat", "freq", "s4")
+      .write.mode("append").jdbc(jdbcUri, "computed.s4cno", jdbcProps)
   }
 
   /*
