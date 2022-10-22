@@ -437,8 +437,9 @@ object TecCalculation extends Serializable {
 
     val tecRange = range
       .withColumn("nt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2", $"DNT"))
-      .withColumn("psrNt", NtFunctions.psrNt($"psr1", $"psr2", $"f1", $"f2", $"sdcb"))
-      .select("time", "sat", "sigcomb", "f1", "f2", "nt", "psrNt")
+      .withColumn("adrNt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2", lit("0")))
+      .withColumn("psrNt", NtFunctions.psrNt($"psr1", $"psr2", $"f1", $"f2", lit("0")))
+      .select("time", "sat", "sigcomb", "f1", "f2", "nt", "adrNt", "psrNt")
 
     //tecRange.show()
 
@@ -449,6 +450,8 @@ object TecCalculation extends Serializable {
     //          f1 Float64,
     //          f2 Float64,
     //          nt Float64,
+    //          adrNt Float64,
+    //          psrNt Float64,
     //          d Date MATERIALIZED toDate(round(time / 1000))
     //        ) ENGINE = ReplacingMergeTree(d, (time, sat, sigcomb), 8192)
     //        TTL d + INTERVAL 2 Week DELETE
