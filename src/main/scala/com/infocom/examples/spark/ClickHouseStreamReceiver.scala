@@ -5,11 +5,14 @@ import com.infocom.examples.spark.data._
 import com.infocom.examples.spark.schema.ClickHouse._
 import com.infocom.examples.spark.serialization._
 import com.infocom.examples.spark.{StreamFunctions => SF}
+import com.infocom.examples.spark.Functions._
+
 import org.apache.kafka.clients.consumer.ConsumerRecord
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.expressions.UserDefinedFunction
-import org.apache.spark.sql.functions.udf
+import org.apache.spark.sql.expressions.Window
+import org.apache.spark.sql.functions._
 
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming._
@@ -122,8 +125,45 @@ object StreamReceiver {
 
     createKafkaStream[DataPointSatxyz2]("datapoint-raw-satxyz2").
       map(toRow).
-      foreachRDD({
-        _.toDF.
+      foreachRDD((rdd) => {
+        val win = Window.partitionBy("sat").orderBy("time")
+
+        // interpolate 1/10 Hz points to 50 Hz (20 ms step)
+        val prepared = rdd.toDF.
+          // Previous lag
+          withColumn("timePrev",
+            when(row_number.over(win) === 1, $"time").
+            otherwise(lag($"time", 1).over(win))
+          ).
+          withColumn("XPrev",
+            when(row_number.over(win) === 1, $"X").
+            otherwise(lag($"X", 1).over(win))
+          ).
+          withColumn("YPrev",
+            when(row_number.over(win) === 1, $"Y").
+            otherwise(lag($"Y", 1).over(win))
+          ).
+          withColumn("ZPrev",
+            when(row_number.over(win) === 1, $"Z").
+            otherwise(lag($"Z", 1).over(win))
+          )
+
+        val interpolated = prepared.
+          // Interpolate over each column
+          withColumn("interpolatedList",
+            tsInterpolate(20)($"timePrev", $"time",
+              $"XPrev", $"X", $"YPrev", $"Y", $"ZPrev", $"Z")
+          ).
+          withColumn("interpolated", explode($"interpolatedList")).
+          select(
+            $"interpolated._1".as("time"),
+            $"interpolated._2".as("X"),
+            $"interpolated._3".as("Y"),
+            $"interpolated._4".as("Z"),
+            $"sat", $"system", $"prn"
+          )
+
+        val resulting = interpolated.
           withColumn("geopoint", satGeoPoint($"X", $"Y", $"Z")).
           withColumn("ionpoint", satIonPoint($"X", $"Y", $"Z")).
           withColumn("elevation", satElevation($"X", $"Y", $"Z")).

@@ -77,6 +77,45 @@ object Functions extends Serializable {
 
   def waveLength(f: Double): Double = C / f
 
+  @SuppressWarnings(Array("org.wartremover.warts.Equals"))
+  def tsInterpolate(dt: Long) = udf {
+    (ts1: Long, ts2: Long, XPrev: Double, X: Double, YPrev: Double, Y: Double,
+      ZPrev: Double, Z: Double) => {
+      val perMinuteTS: IndexedSeq[Long]
+        = if (ts1.equals(ts2)) Vector(ts1) else {
+          val ldt1 = ts1
+          val ldt2 = ts2
+          Iterator.iterate(ldt1 + dt)(_ + dt).
+              takeWhile(_ <= ldt2).
+              toIndexedSeq
+        }
+
+      val perMinuteX: IndexedSeq[Double] = for {
+        i <- 1 to perMinuteTS.size
+      } yield XPrev + ((X - XPrev) * i / perMinuteTS.size)
+
+      val perMinuteY: IndexedSeq[Double] = for {
+        i <- 1 to perMinuteTS.size
+      } yield YPrev + ((Y - YPrev) * i / perMinuteTS.size)
+
+      val perMinuteZ: IndexedSeq[Double] = for {
+        i <- 1 to perMinuteTS.size
+      } yield ZPrev + ((Z - ZPrev) * i / perMinuteTS.size)
+
+      val likeTuples
+        = (perMinuteTS.toList
+            zip perMinuteX.toList
+            zip perMinuteY.toList
+            zip perMinuteZ.toList)
+
+      likeTuples.map({
+        _ match {
+          case (((a, b), c), d) => (a, b, c, d)
+        }
+      })
+    }
+  }
+
   def k: UserDefinedFunction = udf {
     (adr1: Double, adr2: Double, f1: Double, f2: Double, psr1: Double, psr2: Double, sdcb: Double)
       => (psr2 - psr1 + sdcb * C) - (adr2 * waveLength(f2) - adr1 * waveLength(f1))
