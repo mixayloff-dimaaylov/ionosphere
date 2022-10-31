@@ -21,21 +21,15 @@ import scala.reflect._
 
 object StreamReceiver {
   private def satGeoPoint: UserDefinedFunction = udf {
-    (X: Double, Y: Double, Z: Double) => {
-      SF.satGeoPointRaw(X, Y, Z)
-    }
+    (X: Double, Y: Double, Z: Double) => { SF.satGeoPoint(X, Y, Z) } : Long
   }
 
   private def satIonPoint: UserDefinedFunction = udf {
-    (X: Double, Y: Double, Z: Double) => {
-      SF.satIonPointRaw(X, Y, Z)
-    }
+    (X: Double, Y: Double, Z: Double) => { SF.satIonPoint(X, Y, Z) } : Long
   }
 
   private def satElevation: UserDefinedFunction = udf {
-    (X: Double, Y: Double, Z: Double) => {
-      SF.satElevationRaw(X, Y, Z)
-    }
+    (X: Double, Y: Double, Z: Double) => { SF.satElevation(X, Y, Z) } : Double
   }
 
   def main(args: Array[String]): Unit = {

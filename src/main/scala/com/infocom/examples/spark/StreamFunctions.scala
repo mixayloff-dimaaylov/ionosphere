@@ -131,10 +131,10 @@ object StreamFunctions {
 
   @deprecated("Do not convert raw objects to GeoHash form", "logserver-spark 0.2.0")
   def satGeoPoint(xyz: DataPointSatxyz2): Long = {
-    satGeoPointRaw(xyz.X, xyz.Y, xyz.Z)
+    satGeoPoint(xyz.X, xyz.Y, xyz.Z)
   }
 
-  def satGeoPointRaw(X: Double, Y: Double, Z: Double): Long = {
+  def satGeoPoint(X: Double, Y: Double, Z: Double): Long = {
     val lla = ecef2lla(Array(X, Y, Z))
 
     GeoHash.withBitPrecision(lla(0), lla(1), 52).longValueLeft
@@ -142,10 +142,10 @@ object StreamFunctions {
 
   @deprecated("Do not convert raw objects to GeoHash form", "logserver-spark 0.2.0")
   def satIonPoint(xyz: DataPointSatxyz2): Long = {
-    satIonPointRaw(xyz.X, xyz.Y, xyz.Z)
+    satIonPoint(xyz.X, xyz.Y, xyz.Z)
   }
 
-  def satIonPointRaw(X: Double, Y: Double, Z: Double): Long = {
+  def satIonPoint(X: Double, Y: Double, Z: Double): Long = {
     val point = Array(X, Y, Z)
     val lla = ecef2lla(intersection(point, get_unit_vector(get_vector(point, receiver))))
 
@@ -154,10 +154,10 @@ object StreamFunctions {
 
   @deprecated("Do not convert raw objects to GeoHash form", "logserver-spark 0.2.0")
   def satElevation(xyz: DataPointSatxyz2): Double = {
-    satElevationRaw(xyz.X, xyz.Y, xyz.Z)
+    satElevation(xyz.X, xyz.Y, xyz.Z)
   }
 
-  def satElevationRaw(X: Double, Y: Double, Z: Double): Double = {
+  def satElevation(X: Double, Y: Double, Z: Double): Double = {
     val point = Array(X, Y, Z)
 
     getElevation(normal(receiver), get_vector(receiver, point))
