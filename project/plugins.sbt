@@ -22,7 +22,7 @@ addSbtPlugin("com.timushev.sbt" % "sbt-updates" % "0.6.2")
 
 addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.9.2")
 
-addSbtPlugin("org.wartremover" % "sbt-wartremover" % "2.4.9")
+addSbtPlugin("org.wartremover" % "sbt-wartremover" % "2.4.20")
 
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
 

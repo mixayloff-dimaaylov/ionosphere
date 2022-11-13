@@ -206,8 +206,8 @@ object TecCalculation extends Serializable {
     runJob(spark, from)
   }
 
-  @SuppressWarnings(Array("org.wartremover.warts.Var"))
-  @SuppressWarnings(Array("org.wartremover.warts.While"))
+  @SuppressWarnings(Array("org.wartremover.warts.Var",
+                          "org.wartremover.warts.While"))
   def fire(repeat: String): Unit = {
     val spark = getOrCreateSession("TEC Range Calculations")
 

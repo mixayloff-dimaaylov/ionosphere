@@ -7,8 +7,8 @@ RUN sbt update
 COPY . .
 RUN sbt projectAssembly/assembly
 
-FROM bde2020/spark-base:2.2.1-hadoop2.7 AS install
-COPY --from=build /usr/local/src/spark/assembly/target/scala-2.11/novatel-streaming-assembly-*.jar /spark/jars/
+FROM bde2020/spark-base:2.4.0-hadoop2.8-scala2.12 AS install
+COPY --from=build /usr/local/src/spark/assembly/target/scala-2.12/novatel-streaming-assembly-*.jar /spark/jars/
 
 FROM install AS spark-streamer-1
 # Kafka client ports
