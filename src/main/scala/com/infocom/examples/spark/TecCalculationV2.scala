@@ -20,7 +20,7 @@ import java.nio.file.{Files, Paths}
 import java.util.UUID
 
 import org.apache.spark.sql._
-import org.apache.spark.sql.avro._
+import org.apache.spark.sql.avro.functions.from_avro
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions._
 import org.apache.spark.SparkConf

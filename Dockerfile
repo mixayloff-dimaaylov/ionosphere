@@ -21,7 +21,7 @@ RUN sbt update
 COPY . .
 RUN sbt projectAssembly/assembly
 
-FROM bde2020/spark-base:2.4.0-hadoop2.8-scala2.12 AS install
+FROM bde2020/spark-base:3.0.0-hadoop3.2 AS install
 COPY --from=build /usr/local/src/spark/assembly/target/scala-2.12/novatel-streaming-assembly-*.jar /spark/jars/
 COPY ./bin/avro/ /spark/avro-schemas/
 

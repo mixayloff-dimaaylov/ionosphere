@@ -1,3 +1,7 @@
+### Sbt & Ivy build cache
+./target/
+./assembly/target/
+
 ### Ammonite REPL ###
 .ammonite/
 
