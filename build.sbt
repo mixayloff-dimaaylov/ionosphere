@@ -28,6 +28,11 @@ scalacOptions ++= Seq(
   "-Xfuture"
 )
 
+scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")
+
+// Ref: Disable warts for console
+scalacOptions in (Compile, console) := (console / scalacOptions).value.filterNot(_.contains("wartremover"))
+
 wartremoverErrors ++= Seq(
   Wart.StringPlusAny,
   Wart.EitherProjectionPartial,
@@ -48,7 +53,7 @@ wartremoverErrors ++= Seq(
   Wart.While
 )
 
-val sparkVersion = "2.4.0"
+val sparkVersion = "3.3.0"
 
 val hbaseVersion = "1.2.0-cdh5.14.0"
 
@@ -68,7 +73,7 @@ val assemblyDependencies = (scope: String) => Seq(
 
   "org.apache.spark" %% "spark-avro" % sparkVersion,
   "org.apache.spark" %% "spark-sql-kafka-0-10" % sparkVersion,
-  "org.apache.bahir" %% "spark-sql-streaming-jdbc" % sparkVersion
+  "org.apache.bahir" %% "spark-sql-streaming-jdbc" % "2.4.0"
 )
 
 /*if it's a library the scope is "compile" since we want the transitive dependencies on the library
@@ -104,7 +109,12 @@ Test / parallelExecution := false
 
 lazy val root = (project in file(".")).
   configs(IntegrationTest).
-  settings(Defaults.itSettings: _*).
+  settings(
+    Defaults.itSettings,
+    // Cache for speedup sbt on ephemeral Docker containers
+    // Ref: https://github.com/sbt/sbt/issues/3270
+    ivyPaths := { IvyPaths(baseDirectory.value, Some(target.value / ".ivy2")) },
+  ).
   // enablePlugins(AutomateHeaderPlugin).
   enablePlugins(JavaAppPackaging).
   enablePlugins(AssemblyPlugin)

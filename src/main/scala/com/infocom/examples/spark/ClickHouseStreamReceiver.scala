@@ -6,7 +6,7 @@ import com.infocom.examples.spark.{StreamFunctions => SF}
 import com.infocom.examples.spark.Functions._
 
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.avro._
+import org.apache.spark.sql.avro.functions.from_avro
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
@@ -109,10 +109,6 @@ object StreamReceiver {
     @transient val spark = SparkSession.builder.config(conf).getOrCreate()
     import spark.implicits._
 
-    System.out.println("Create StreamingContext")
-    val ssc = new StreamingContext(spark.sparkContext, Seconds(60))
-    System.out.println("Created StreamingContext")
-
     def createKafkaStream[TDataPoint](topic: String) = {
       val stream = spark
         .readStream
@@ -135,10 +131,7 @@ object StreamReceiver {
       .writeStream
       .option("checkpointLocation", "/tmp/infocom/datapont-raw-range")
       .outputMode("append")
-      .format("streaming-jdbc")
-      .option("url", jdbcUri)
-      .option("table", "rawdata.range")
-      .option("isolationLevel", "NONE")
+      .format("console")
       .start()
 
     // ISMREDOBS
@@ -147,10 +140,7 @@ object StreamReceiver {
       .writeStream
       .option("checkpointLocation", "/tmp/infocom/datapoint-raw-ismredobs")
       .outputMode("append")
-      .format("streaming-jdbc")
-      .option("url", jdbcUri)
-      .option("table", "rawdata.ismredobs")
-      .option("isolationLevel", "NONE")
+      .format("console")
       .start()
 
     // ISMDETOBS
@@ -159,10 +149,7 @@ object StreamReceiver {
       .writeStream
       .option("checkpointLocation", "/tmp/infocom/datapoint-raw-ismdetobs")
       .outputMode("append")
-      .format("streaming-jdbc")
-      .option("url", jdbcUri)
-      .option("table", "rawdata.ismdetobs")
-      .option("isolationLevel", "NONE")
+      .format("console")
       .start()
 
     // ISMRAWTEC
@@ -171,10 +158,7 @@ object StreamReceiver {
       .writeStream
       .option("checkpointLocation", "/tmp/infocom/datapoint-raw-ismrawtec")
       .outputMode("append")
-      .format("streaming-jdbc")
-      .option("url", jdbcUri)
-      .option("table", "rawdata.ismrawtec")
-      .option("isolationLevel", "NONE")
+      .format("console")
       .start()
 
     // SATXYZ2
@@ -236,10 +220,7 @@ object StreamReceiver {
       writeStream.
       option("checkpointLocation", "/tmp/infocom/datapoint-raw-satxyz2").
       outputMode("append").
-      format("streaming-jdbc").
-      option("url", jdbcUri).
-      option("table", "rawdata.satxyz2").
-      option("isolationLevel", "NONE").
+      format("console").
       start()
 
     System.out.println("Start StreamingContext")
