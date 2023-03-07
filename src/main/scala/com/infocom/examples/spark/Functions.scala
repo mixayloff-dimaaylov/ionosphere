@@ -106,6 +106,58 @@ object Functions extends Serializable {
       }
   }
 
+  /**
+   * ПЭС без поправок
+   * @param dnt смещение, м
+   */
+  def psrNt: UserDefinedFunction = udf {
+    (psr1: Double, psr2: Double, f1: Double, f2: Double, sdcb: Double) =>
+      {
+        val f1_2 = f1 * f1
+        val f2_2 = f2 * f2
+
+        ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (psr2 - psr1 + sdcb)
+      }
+  }
+
+  /**
+   * ПЭС без поправок
+   * @param dnt смещение, м
+   */
+  def rawNt: UserDefinedFunction = udf {
+    (adr1: Double, adr2: Double, f1: Double, f2: Double, dnt: Double) => {
+      val f1_2 = f1 * f1
+      val f2_2 = f2 * f2
+
+      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (adr2 * waveLength(f2) - adr1 * waveLength(f1) + dnt)
+    }
+  }
+
+  /**
+   * Расчет автокорреляционной функции (АКФ) флуктуаций ПЭС
+   *
+   * @param seq последовательность delNT
+   * @return Интервал временной корреляции
+   */
+  def timeCorrelation(seq: Seq[Double]): Double = {
+    val seqSum = (seq, seq).zipped.map(_ * _).sum
+
+    val index = Seq.range(1, seq.length)
+      .indexWhere(i => (seq.drop(i), seq).zipped.map(_ * _).sum / seqSum < 1 / Math.E)
+      .toDouble
+
+    if (index < 2) 0 else index * 0.02
+  }
+
+  /**
+   * Рассчет i-го элемента АКФ флуктуаций ПЭС
+   */
+  def timeCorrelationItem(i: Int)(seq: Seq[Double]): Double = {
+    val seqSum = (seq, seq).zipped.map(_ * _).sum
+
+    (seq.drop(i), seq).zipped.map(_ * _).sum / seqSum
+  }
+
   def fluctuation: UserDefinedFunction = udf {
     (deviation: Double, freq: Double) => (80.8 * Math.PI * deviation * 1e16) / (C * freq)
   }

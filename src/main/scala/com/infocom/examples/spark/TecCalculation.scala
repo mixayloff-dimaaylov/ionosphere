@@ -27,60 +27,6 @@ import scala.collection.mutable
 
 import Functions._
 
-object NtFunctions extends Serializable {
-  /**
-   * ПЭС без поправок
-   * @param dnt смещение, м
-   */
-  def psrNt: UserDefinedFunction = udf {
-    (psr1: Double, psr2: Double, f1: Double, f2: Double, sdcb: Double) =>
-      {
-        val f1_2 = f1 * f1
-        val f2_2 = f2 * f2
-
-        ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (psr2 - psr1 + sdcb)
-      }
-  }
-
-  /**
-   * ПЭС без поправок
-   * @param dnt смещение, м
-   */
-  def rawNt: UserDefinedFunction = udf {
-    (adr1: Double, adr2: Double, f1: Double, f2: Double, dnt: Double) => {
-      val f1_2 = f1 * f1
-      val f2_2 = f2 * f2
-
-      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (adr2 * waveLength(f2) - adr1 * waveLength(f1) + dnt)
-    }
-  }
-
-  /**
-   * Расчет автокорреляционной функции (АКФ) флуктуаций ПЭС
-   *
-   * @param seq последовательность delNT
-   * @return Интервал временной корреляции
-   */
-  def timeCorrelation(seq: Seq[Double]): Double = {
-    val seqSum = (seq, seq).zipped.map(_ * _).sum
-
-    val index = Seq.range(1, seq.length)
-      .indexWhere(i => (seq.drop(i), seq).zipped.map(_ * _).sum / seqSum < 1 / Math.E)
-      .toDouble
-
-    if (index < 2) 0 else index * 0.02
-  }
-
-  /**
-   * Рассчет i-го элемента АКФ флуктуаций ПЭС
-   */
-  def timeCorrelationItem(i: Int)(seq: Seq[Double]): Double = {
-    val seqSum = (seq, seq).zipped.map(_ * _).sum
-
-    (seq.drop(i), seq).zipped.map(_ * _).sum / seqSum
-  }
-}
-
 object DigitalFilters extends Serializable {
   def avgNt(nt: Seq[Double], avgNt: Seq[Double]): Double = {
     val b = Seq(
@@ -222,8 +168,8 @@ object TecCalculation extends Serializable {
     runJob(spark, from)
   }
 
-  @SuppressWarnings(Array("org.wartremover.warts.Var"))
-  @SuppressWarnings(Array("org.wartremover.warts.While"))
+  @SuppressWarnings(Array("org.wartremover.warts.Var",
+                          "org.wartremover.warts.While"))
   def fire(repeat: String): Unit = {
     val spark = getOrCreateSession("TEC Range Calculations")
 
@@ -452,9 +398,9 @@ object TecCalculation extends Serializable {
     //range.show()
 
     val tecRange = range
-      .withColumn("nt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2", $"DNT"))
-      .withColumn("adrNt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2", lit("0")))
-      .withColumn("psrNt", NtFunctions.psrNt($"psr1", $"psr2", $"f1", $"f2", lit("0")))
+      .withColumn("nt", rawNt($"adr1", $"adr2", $"f1", $"f2", $"DNT"))
+      .withColumn("adrNt", rawNt($"adr1", $"adr2", $"f1", $"f2", lit("0")))
+      .withColumn("psrNt", psrNt($"psr1", $"psr2", $"f1", $"f2", lit("0")))
       .select("time", "sat", "sigcomb", "f1", "f2", "nt", "adrNt", "psrNt")
 
     //tecRange.show()
@@ -783,15 +729,15 @@ object TecCalculation extends Serializable {
       jdbcProps
     )
 
-    val uTimeCorrelation = udf(NtFunctions.timeCorrelation _)
-    //    val uTimeCorrelation0 = udf(NtFunctions.timeCorrelationItem(0) _)
-    //    val uTimeCorrelation1 = udf(NtFunctions.timeCorrelationItem(1) _)
-    //    val uTimeCorrelation2 = udf(NtFunctions.timeCorrelationItem(2) _)
-    //    val uTimeCorrelation3 = udf(NtFunctions.timeCorrelationItem(3) _)
-    //    val uTimeCorrelation4 = udf(NtFunctions.timeCorrelationItem(4) _)
-    //    val uTimeCorrelation5 = udf(NtFunctions.timeCorrelationItem(5) _)
-    //    val uTimeCorrelation6 = udf(NtFunctions.timeCorrelationItem(6) _)
-    //    val uTimeCorrelation7 = udf(NtFunctions.timeCorrelationItem(7) _)
+    val uTimeCorrelation = udf(timeCorrelation _)
+    //    val uTimeCorrelation0 = udf(timeCorrelationItem(0) _)
+    //    val uTimeCorrelation1 = udf(timeCorrelationItem(1) _)
+    //    val uTimeCorrelation2 = udf(timeCorrelationItem(2) _)
+    //    val uTimeCorrelation3 = udf(timeCorrelationItem(3) _)
+    //    val uTimeCorrelation4 = udf(timeCorrelationItem(4) _)
+    //    val uTimeCorrelation5 = udf(timeCorrelationItem(5) _)
+    //    val uTimeCorrelation6 = udf(timeCorrelationItem(6) _)
+    //    val uTimeCorrelation7 = udf(timeCorrelationItem(7) _)
 
     val result = rawData
       .groupBy("time", "sat", "sigcomb")

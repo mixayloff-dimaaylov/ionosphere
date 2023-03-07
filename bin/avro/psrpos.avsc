@@ -14,22 +14,40 @@
  * limitations under the License.
  */
 
-logLevel := Level.Warn
-
-addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "1.2.0")
-
-addSbtPlugin("com.timushev.sbt" % "sbt-updates" % "0.6.2")
-
-addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.9.2")
-
-addSbtPlugin("org.wartremover" % "sbt-wartremover" % "2.4.20")
-
-addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
-
-addSbtPlugin("org.scalariform" % "sbt-scalariform" % "1.8.3")
-
-addSbtPlugin("de.heikoseeberger" % "sbt-header" % "5.6.5")
-
-addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.8.1")
-
-addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "5.2.4")
+{
+  "type": "array",
+  "items": {
+    "name": "NovAtelLogReader.DataPoints.DataPointPsrpos",
+    "type": "record",
+    "fields": [
+      {
+        "name": "Timestamp",
+        "type": "long"
+      },
+      {
+        "name": "Lat",
+        "type": "double"
+      },
+      {
+        "name": "Lon",
+        "type": "double"
+      },
+      {
+        "name": "Hgt",
+        "type": "double"
+      },
+      {
+        "name": "LatStdDev",
+        "type": "double"
+      },
+      {
+        "name": "LonStdDev",
+        "type": "double"
+      },
+      {
+        "name": "HgtStdDev",
+        "type": "double"
+      }
+    ]
+  }
+}
