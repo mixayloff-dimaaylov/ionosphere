@@ -17,7 +17,7 @@
 package com.infocom.examples.spark
 
 import java.nio.file.{Files, Paths}
-import java.util.UUID
+import java.util.{Properties, UUID}
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.avro.functions.from_avro
@@ -103,18 +103,20 @@ object TecCalculationV2 extends Serializable {
         .option("subscribe", topic)
     }
 
+    // Ref: https://github.com/ClickHouse/clickhouse-java/issues/975
+    // Ref: https://github.com/ClickHouse/clickhouse-java/pull/1008#issuecomment-1303964814
+    val jdbcProps = new Properties()
+    jdbcProps.setProperty("isolationLevel", "NONE")
+    jdbcProps.setProperty("numPartitions", "1")
+    jdbcProps.setProperty("user", "default")
+    jdbcProps.setProperty("password", "")
+
     def jdbcSink(stream: DataFrame, tableName: String) = {
       stream
         .writeStream
         .foreachBatch((batchDF: DataFrame, batchId: Long) => {
-          batchDF.write
-            .format("jdbc")
-            .mode("append")
-            .option("url", jdbcUri)
-            .option("dbtable", tableName)
-            .option("user", "default")
-            .option("password", "")
-            .save()
+          batchDF.write.mode("append")
+            .jdbc(jdbcUri, tableName, jdbcProps)
           ()
         })
     }
