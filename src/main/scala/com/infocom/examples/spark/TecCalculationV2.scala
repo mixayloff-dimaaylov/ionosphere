@@ -23,10 +23,34 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.avro.functions.from_avro
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.streaming.{GroupStateTimeout, OutputMode, GroupState}
 import org.apache.spark.SparkConf
 
 import com.infocom.examples.spark.{StreamFunctions => SF}
 import Functions._
+
+/* Private RDDs */
+
+private case class RangeNT (
+  time: Long,
+  sat: String,
+  sigcomb: String,
+  f1: Double,
+  f2: Double,
+  nt: Double,
+  adrNt: Double,
+  psrNt: Double)
+    extends Serializable
+
+private case class RangeDerNT (
+  time: Long,
+  sat: String,
+  sigcomb: String,
+  f1: Double,
+  f2: Double,
+  avgNt: Double,
+  delNt: Double)
+    extends Serializable
 
 /**
  * Created by mixayloff-dimaaylov on 07.03.2023.
@@ -35,6 +59,38 @@ object TecCalculationV2 extends Serializable {
   private val ismrawtecSchemaPath = "/spark/avro-schemas/ismrawtec.avsc"
   private val rangeSchemaPath = "/spark/avro-schemas/range.avsc"
   private val satxyz2SchemaPath = "/spark/avro-schemas/satxyz2.avsc"
+
+  // implicit val RangeNTEncoder: Encoder[RangeNT] =
+  //   Encoders.kryo[RangeNT]
+  @transient implicit val digitalFilterEncoder: Encoder[DigitalFilter] =
+    Encoders.kryo[DigitalFilter]
+  @transient implicit val tuple2Encoder: Encoder[Tuple2[DigitalFilter, DigitalFilter]] =
+    Encoders.kryo[Tuple2[DigitalFilter, DigitalFilter]]
+
+  /* Digital filter handler for flatMapGroupsWithState */
+  private def digitalFilter(
+      satcomb: Tuple2[String, String],
+      input: Iterator[RangeNT],
+      state: GroupState[(DigitalFilter, DigitalFilter)]):
+        Iterator[RangeDerNT] = {
+
+    val curState = state.getOption
+    var (avgF, delF) = if (curState.isEmpty) {
+      (DigitalFilters.avgNt, DigitalFilters.delNt)
+    } else {
+      state.get
+    }
+
+    // Flatten Objects
+    val res = input.toSeq.sortWith(_.time < _.time).map({
+      case RangeNT(time, sat, sigcomb, f1, f2, nt, adrNt, psrNt) =>
+        RangeDerNT(time, sat, sigcomb, f1, f2, avgF(nt), delF(nt))
+    })
+
+    state.update((avgF, delF))
+
+    res.iterator
+  }
 
   private def readSchemaFile(path: String): String = {
     new String(Files.readAllBytes(Paths.get(path)))
@@ -51,6 +107,8 @@ object TecCalculationV2 extends Serializable {
   private def satElevation: UserDefinedFunction = udf {
     (X: Double, Y: Double, Z: Double) => { SF.satElevation(X, Y, Z) } : Double
   }
+
+  /* main */
 
   def main(args: Array[String]): Unit = {
     System.out.println("Run main")
@@ -77,7 +135,7 @@ object TecCalculationV2 extends Serializable {
     val rangeSchema = readSchemaFile(rangeSchemaPath)
     val satxyz2Schema = readSchemaFile(satxyz2SchemaPath)
 
-    val conf = new SparkConf().setAppName("GNSS TecCalculationV2")
+    val conf: SparkConf = new SparkConf().setAppName("GNSS TecCalculationV2")
 
     val master = conf.getOption("spark.master")
 
@@ -88,6 +146,7 @@ object TecCalculationV2 extends Serializable {
     System.out.println("Init conf")
 
     val spark = SparkSession.builder.config(conf).getOrCreate()
+    spark.sparkContext.setLogLevel("WARN")
     import spark.implicits._
 
     // Sinks and Sources
@@ -99,6 +158,7 @@ object TecCalculationV2 extends Serializable {
         .option("kafka.bootstrap.servers", kafkaServerAddress)
         .option("enable.auto.commit", (false: java.lang.Boolean))
         .option("auto.offset.reset", "latest")
+        .option("failOnDataLoss", (false: java.lang.Boolean))
         .option("group.id", s"gnss-stream-receiver-${clientUID}-${topic}")
         .option("subscribe", topic)
     }
@@ -178,9 +238,16 @@ object TecCalculationV2 extends Serializable {
 
     // Calculations (computed)
 
+    /* watermark to prevent infinite caching on joins */
+    val rangeTimestamped =
+      rangeDeser
+        .withColumn("ts", expr("timestamp_millis(time)"))
+        .withWatermark("ts", "10 seconds")
+
     val rangePrep =
-      rangeDeser.as("c1")
-        .join(rangeDeser.as("c2")).where(
+      rangeTimestamped.as("c1")
+        .join(rangeTimestamped.as("c2")).where(
+          ($"c1.ts"   === $"c2.ts") &&
           ($"c1.time" === $"c2.time") &&
           ($"c1.sat"  === $"c2.sat") &&
           ($"c1.freq" === "L1CA") && ($"c2.freq" =!= "L1CA"))
@@ -198,13 +265,28 @@ object TecCalculationV2 extends Serializable {
           concat_ws("+", $"c1.freq", $"c2.freq").as("sigcomb"))
 
     val rangeNT =
-    rangePrep
+      rangePrep
         .withColumn("nt", rawNt($"adr1", $"adr2", $"f1", $"f2", lit("0")))
         .withColumn("adrNt", rawNt($"adr1", $"adr2", $"f1", $"f2", lit("0")))
         .withColumn("psrNt", psrNt($"psr1", $"psr2", $"f1", $"f2", lit("0")))
         .select("time", "sat", "sigcomb", "f1", "f2", "nt", "adrNt", "psrNt")
 
     jdbcSink(rangeNT, "computed.NT").start()
+
+    // Derivatives calculation
+
+    val rangeGrouped =
+      rangeNT
+        .as[RangeNT]
+        .groupByKey(x => (x.sat, x.sigcomb))
+
+    val derivativesNT =
+      rangeGrouped
+        .flatMapGroupsWithState(
+          OutputMode.Append, GroupStateTimeout.ProcessingTimeTimeout())(digitalFilter)
+        .select("time", "sat", "sigcomb", "f1", "f2", "avgNT", "delNT")
+
+    jdbcSink(derivativesNT, "computed.NTDerivatives").start()
 
     spark.streams.awaitAnyTermination()
   }

@@ -69,7 +69,7 @@ wartremoverErrors ++= Seq(
   Wart.While
 )
 
-val sparkVersion = "3.0.0"
+val sparkVersion = "3.3.0"
 
 val hbaseVersion = "1.2.0-cdh5.14.0"
 
@@ -83,9 +83,7 @@ val isALibrary = true //this is a library project
 
 val assemblyDependencies = (scope: String) => Seq(
   "ch.hsr" % "geohash" % "1.3.0" % scope,
-  "ru.yandex.clickhouse" % "clickhouse-jdbc" % "0.1.55" % scope,
-  "org.apache.httpcomponents" % "httpclient" % "4.5.2" % scope,
-  "org.apache.httpcomponents" % "httpmime" % "4.5.2" % scope,
+  "com.clickhouse" % "clickhouse-jdbc" % "0.3.2" % scope,
 
   "org.apache.spark" %% "spark-avro" % sparkVersion,
   "org.apache.spark" %% "spark-streaming-kafka-0-10" % sparkVersion,

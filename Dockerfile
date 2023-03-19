@@ -21,7 +21,7 @@ RUN sbt update
 COPY . .
 RUN sbt projectAssembly/assembly
 
-FROM bde2020/spark-base:3.0.0-hadoop3.2 AS install
+FROM bde2020/spark-base:3.3.0-hadoop3.3 AS install
 COPY --from=build /usr/local/src/spark/assembly/target/scala-2.12/novatel-streaming-assembly-*.jar /spark/jars/
 COPY ./bin/avro/ /spark/avro-schemas/
 
@@ -32,7 +32,7 @@ CMD /spark/bin/spark-submit \
 	--deploy-mode client \
         --master local[*] \
     --class com.infocom.examples.spark.TecCalculationV2 \
-	--driver-memory 512m \
+	--driver-memory 2g \
 	--num-executors 1 \
 	--executor-cores 2 \
 	--executor-memory 1500m \

@@ -27,70 +27,6 @@ import scala.collection.mutable
 
 import Functions._
 
-object DigitalFilters extends Serializable {
-  def avgNt(nt: Seq[Double], avgNt: Seq[Double]): Double = {
-    val b = Seq(
-      0.00000004863987500780838,
-      0.00000029183925004685027,
-      0.00000072959812511712565,
-      0.00000097279750015616753,
-      0.00000072959812511712565,
-      0.00000029183925004685027,
-      0.00000004863987500780838
-    )
-
-    val a = Seq(
-      -5.5145351211661655,
-      12.689113056515138,
-      -15.593635210704097,
-      10.793296670485379,
-      -3.9893594042308829,
-      0.6151231220526282
-    )
-
-    butterworthFilter(b, a, nt, avgNt)
-  }
-
-  def delNt(nt: Seq[Double], delNt: Seq[Double]): Double = {
-    val b = Seq(
-      0.076745906902313671,
-      0,
-      -0.23023772070694101,
-      0,
-      0.23023772070694101,
-      0,
-      -0.076745906902313671
-    )
-
-    val a = Seq(
-      -3.4767608600037727,
-      5.0801848641096203,
-      -4.2310052826910152,
-      2.2392861745041328,
-      -0.69437337677433475,
-      0.084273573849621822
-    )
-
-    butterworthFilter(b, a, nt, delNt)
-  }
-
-  @SuppressWarnings(Array("org.wartremover.warts.Throw"))
-  private def butterworthFilter(b: Seq[Double], a: Seq[Double], bInputSeq: Seq[Double], aInputSeq: Seq[Double]): Double = {
-    if (b.length !== bInputSeq.length) throw
-      new IllegalArgumentException(s"The length of b must be equal to bInputSeq length")
-
-    if (a.length !== aInputSeq.length) throw
-      new IllegalArgumentException(s"The length of a must be equal to aInputSeq length")
-
-    (b, bInputSeq).zipped.map((x, y) => x * y).sum - (a, aInputSeq).zipped.map((x, y) => x * y).sum
-  }
-
-  @SuppressWarnings(Array("org.wartremover.warts.Equals"))
-  implicit final class AnyOps[A](self: A) {
-    def !==(other: A): Boolean = self != other
-  }
-}
-
 object SigNtFunctions extends Serializable {
   /**
    * СКО флуктуаций фазы на фазовом экране
@@ -133,11 +69,9 @@ object TecCalculation extends Serializable {
   @transient private var DNTMap = mutable.Map[(String, String), Double]()
 
   @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
-  @transient private val NTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
+  @transient private val avgNTMap = mutable.Map[(String, String), DigitalFilter]()
   @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
-  @transient private val avgNTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
-  @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
-  @transient private val delNTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
+  @transient private val delNTMap = mutable.Map[(String, String), DigitalFilter]()
 
   {
     jdbcProps.setProperty("isolationLevel", "NONE")
@@ -241,9 +175,6 @@ object TecCalculation extends Serializable {
 
     // выкинуть все значения, которых нет в range
     DNTMap --= (DNTMap -- rangeList).keys
-    NTMap    --= (NTMap -- rangeList).keys
-    avgNTMap --= (avgNTMap -- rangeList).keys
-    delNTMap --= (delNTMap -- rangeList).keys
 
     range.collect().foreach(row => {
       val sat = row(0).toString
@@ -592,54 +523,36 @@ object TecCalculation extends Serializable {
     @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
     var time = rawData.select("time").map(r => r.getDecimal(0)).collect().toSeq
     val nt = rawData.select("nt").map(r => r.getDouble(0)).collect().toSeq
-
-    val filterOrder = 6
-    val zero: Double = 0;
-
-    @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
-    val zeroSeq = mutable.Seq.fill[Double](filterOrder)(zero)
-    val NTSeq = NTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder, zero) ++ nt
-    var avgNTSeq = avgNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
-    var delNtSeq = delNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
-
-    for (i <- 6 until NTSeq.length) {
-      val nt7 = Seq(NTSeq(i), NTSeq(i - 1), NTSeq(i - 2), NTSeq(i - 3), NTSeq(i - 4), NTSeq(i - 5), NTSeq(i - 6))
-
-      avgNTSeq(i) = DigitalFilters.avgNt(nt7, Seq(avgNTSeq(i - 1), avgNTSeq(i - 2), avgNTSeq(i - 3), avgNTSeq(i - 4), avgNTSeq(i - 5), avgNTSeq(i - 6)))
-      delNtSeq(i) = DigitalFilters.delNt(nt7, Seq(delNtSeq(i - 1), delNtSeq(i - 2), delNtSeq(i - 3), delNtSeq(i - 4), delNtSeq(i - 5), delNtSeq(i - 6)))
-    }
+    var avgF = avgNTMap.getOrElse((sat, sigcomb), DigitalFilters.avgNt)
+    var delF = delNTMap.getOrElse((sat, sigcomb), DigitalFilters.delNt)
+    var avgNTSeq = avgF(nt)
+    var delNtSeq = delF(nt)
 
     // TODO: Find a more mathematically correct solution to the problem of
     // spikes in general
-    if(NTMap.contains((sat, sigcomb)))
-    {
-      val df = (time, avgNTSeq.drop(filterOrder), delNtSeq.drop(filterOrder))
-        .zipped.toSeq.toDF("time", "avgNT", "delNT")
-        //df.show
+    val df = (time, avgNTSeq, delNtSeq)
+      .zipped.toSeq.toDF("time", "avgNT", "delNT")
 
-      val result = rawData.join(df, Seq("time")).orderBy("time")
-      //result.show
+    val result = rawData.join(df, Seq("time")).orderBy("time")
 
-      //        CREATE TABLE computed.NTDerivatives (
-      //          time UInt64,
-      //          sat String,
-      //          sigcomb String,
-      //          f1 Float64,
-      //          f2 Float64,
-      //          avgNT Float64,
-      //          delNT Float64,
-      //          d Date MATERIALIZED toDate(round(time / 1000))
-      //        ) ENGINE = ReplacingMergeTree(d, (time, sat, sigcomb), 8192)
-      //        TTL d + INTERVAL 2 Week DELETE
+    //        CREATE TABLE computed.NTDerivatives (
+    //          time UInt64,
+    //          sat String,
+    //          sigcomb String,
+    //          f1 Float64,
+    //          f2 Float64,
+    //          avgNT Float64,
+    //          delNT Float64,
+    //          d Date MATERIALIZED toDate(round(time / 1000))
+    //        ) ENGINE = ReplacingMergeTree(d, (time, sat, sigcomb), 8192)
+    //        TTL d + INTERVAL 2 Week DELETE
 
-      result
-        .select("time", "sat", "sigcomb", "f1", "f2", "avgNT", "delNT")
-        .write.mode("append").jdbc(jdbcUri, "computed.NTDerivatives", jdbcProps)
-    }
+    result
+      .select("time", "sat", "sigcomb", "f1", "f2", "avgNT", "delNT")
+      .write.mode("append").jdbc(jdbcUri, "computed.NTDerivatives", jdbcProps)
 
-    NTMap((sat, sigcomb)) = NTSeq.takeRight(filterOrder)
-    avgNTMap((sat, sigcomb)) = avgNTSeq.takeRight(filterOrder)
-    delNTMap((sat, sigcomb)) = delNtSeq.takeRight(filterOrder)
+    avgNTMap((sat, sigcomb)) = avgF
+    delNTMap((sat, sigcomb)) = delF
   }
 
   def runJobXz1(spark: SparkSession, from: Long, to: Long): Unit = {
