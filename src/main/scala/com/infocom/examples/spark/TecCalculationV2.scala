@@ -31,6 +31,36 @@ import Functions._
 
 /* Private RDDs */
 
+private case class Raw (
+  time: Long,
+  sat: String,
+  system: String,
+  adr1: Double,
+  adr2: Double,
+  psr1: Double,
+  psr2: Double,
+  f1: Double,
+  f2: Double,
+  glofreq: Integer,
+  sigcomb: String,
+  k: Double)
+    extends Serializable
+
+private case class RawDNT (
+  time: Long,
+  sat: String,
+  system: String,
+  adr1: Double,
+  adr2: Double,
+  psr1: Double,
+  psr2: Double,
+  f1: Double,
+  f2: Double,
+  glofreq: Integer,
+  sigcomb: String,
+  dnt: Double)
+    extends Serializable
+
 private case class RangeNT (
   time: Long,
   sat: String,
@@ -62,6 +92,8 @@ object TecCalculationV2 extends Serializable {
 
   // implicit val RangeNTEncoder: Encoder[RangeNT] =
   //   Encoders.kryo[RangeNT]
+  @transient implicit val dntEstimatorEncoder: Encoder[DNTEstimator] =
+    Encoders.kryo[DNTEstimator]
   @transient implicit val digitalFilterEncoder: Encoder[DigitalFilter] =
     Encoders.kryo[DigitalFilter]
   @transient implicit val tuple2Encoder: Encoder[Tuple2[DigitalFilter, DigitalFilter]] =
@@ -88,6 +120,33 @@ object TecCalculationV2 extends Serializable {
     })
 
     state.update((avgF, delF))
+
+    res.iterator
+  }
+
+  /* DNT estimator for flatMapGroupsWithState */
+  private def dntEstimator(
+      satcomb: Tuple2[String, String],
+      input: Iterator[Raw],
+      state: GroupState[DNTEstimator]):
+        Iterator[RawDNT] = {
+
+    val curState = state.getOption
+    val dntE = if (curState.isEmpty) {
+      DNTEstimators.regular
+    } else {
+      state.get
+    }
+
+    // Flatten Objects
+    val res = input.toSeq.sortWith(_.time < _.time).map({
+      case Raw(time, sat, system, adr1, adr2, psr1, psr2,
+               f1, f2, glofreq, sigcomb, k) =>
+        RawDNT(time, sat, system, adr1, adr2, psr1, psr2,
+               f1, f2, glofreq, sigcomb, dntE(k, time))
+    })
+
+    state.update(dntE)
 
     res.iterator
   }
@@ -264,11 +323,19 @@ object TecCalculationV2 extends Serializable {
           $"c1.glofreq".as("glofreq"), //?
           concat_ws("+", $"c1.freq", $"c2.freq").as("sigcomb"))
 
-    val rangeNT =
+    val rangeDNT =
       rangePrep
-        .withColumn("nt", rawNt($"adr1", $"adr2", $"f1", $"f2", lit("0")))
+        .withColumn("k", k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2", lit(0)))
+        .as[Raw]
+        .groupByKey(x => (x.sat, x.sigcomb))
+        .flatMapGroupsWithState(
+          OutputMode.Append, GroupStateTimeout.ProcessingTimeTimeout())(dntEstimator)
+
+    val rangeNT =
+      rangeDNT
         .withColumn("adrNt", rawNt($"adr1", $"adr2", $"f1", $"f2", lit("0")))
         .withColumn("psrNt", psrNt($"psr1", $"psr2", $"f1", $"f2", lit("0")))
+        .withColumn("nt", rawNt($"adr1", $"adr2", $"f1", $"f2", $"DNT"))
         .select("time", "sat", "sigcomb", "f1", "f2", "nt", "adrNt", "psrNt")
 
     jdbcSink(rangeNT, "computed.NT").start()

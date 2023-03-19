@@ -183,6 +183,13 @@ object Functions extends Serializable {
   }
 }
 
+object DNTEstimators extends Serializable {
+  def regular(): DNTEstimator = {
+    /* Timeout -- 1 minute, 3000 points if frequency of points = 50 Hz */
+    new DNTEstimator(timeOut = 60000)
+  }
+}
+
 object DigitalFilters extends Serializable {
   def avgNt(): DigitalFilter = {
     val b = Seq(
