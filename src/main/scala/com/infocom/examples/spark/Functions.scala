@@ -134,6 +134,47 @@ object Functions extends Serializable {
   }
 
   /**
+   * СКО флуктуаций фазы на фазовом экране
+   *
+   */
+  def sigPhi: UserDefinedFunction = udf {
+    (sigNT: Double, f: Double) => {
+      1e16 * 80.8 * math.Pi * sigNT / (C * f)
+    }
+  }
+
+  /**
+   * Расчет параметра Райса (глубины общих замираний)
+   *
+   */
+  def gamma: UserDefinedFunction = udf {
+    (sigPhi: Double) => {
+      1 / math.exp(math.pow(sigPhi, 2) + 1)
+    }
+  }
+
+  /**
+   * Расчет интервала частотной корреляции
+   *
+   */
+  def fc: UserDefinedFunction = udf {
+    (sigPhi: Double, f: Double) => {
+      f / (math.sqrt(2) * sigPhi)
+    }
+  }
+
+  /**
+   * Расчет интервала пространственной корреляции
+   *
+   */
+  def pc: UserDefinedFunction = udf {
+    (sigPhi: Double) => {
+      val Lc = 200 //Средний размер неоднородностей
+      Lc / sigPhi
+    }
+  }
+
+  /**
    * Расчет автокорреляционной функции (АКФ) флуктуаций ПЭС
    *
    * @param seq последовательность delNT

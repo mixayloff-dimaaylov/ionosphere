@@ -86,7 +86,9 @@ private case class RangeDerNT (
  * Created by mixayloff-dimaaylov on 07.03.2023.
  */
 object TecCalculationV2 extends Serializable {
+  private val ismdetobsSchemaPath = "/spark/avro-schemas/ismdetobs.avsc"
   private val ismrawtecSchemaPath = "/spark/avro-schemas/ismrawtec.avsc"
+  private val ismredobsSchemaPath = "/spark/avro-schemas/ismredobs.avsc"
   private val rangeSchemaPath = "/spark/avro-schemas/range.avsc"
   private val satxyz2SchemaPath = "/spark/avro-schemas/satxyz2.avsc"
 
@@ -190,7 +192,9 @@ object TecCalculationV2 extends Serializable {
     val clientUID = s"${UUID.randomUUID}"
 
     // Read AVRO schemas
+    val ismdetobsSchema = readSchemaFile(ismdetobsSchemaPath)
     val ismrawtecSchema = readSchemaFile(ismrawtecSchemaPath)
+    val ismredobsSchema = readSchemaFile(ismredobsSchemaPath)
     val rangeSchema = readSchemaFile(rangeSchemaPath)
     val satxyz2Schema = readSchemaFile(satxyz2SchemaPath)
 
@@ -202,6 +206,7 @@ object TecCalculationV2 extends Serializable {
       conf.setMaster("local[*]")
     }
 
+    conf.set("spark.sql.streaming.statefulOperator.checkCorrectness.enabled", "false")
     System.out.println("Init conf")
 
     val spark = SparkSession.builder.config(conf).getOrCreate()
@@ -242,11 +247,26 @@ object TecCalculationV2 extends Serializable {
 
     // Data plans
 
+    val ismdetobsStream = createKafkaStream("datapoint-raw-ismdetobs").load()
     val ismrawtecStream = createKafkaStream("datapoint-raw-ismrawtec").load()
+    val ismredobsStream = createKafkaStream("datapoint-raw-ismredobs").load()
     val rangeStream     = createKafkaStream("datapoint-raw-range").load()
     val satxyz2Stream   = createKafkaStream("datapoint-raw-satxyz2").load()
 
     // Calculations (rawdata)
+
+    val ismdetobsDeser =
+      ismdetobsStream
+        .select(from_avro($"value", ismdetobsSchema).as("array"))
+        .withColumn("point", explode($"array"))
+        .select(
+          $"point.Timestamp".as("time"),
+          $"point.NavigationSystem".as("system"),
+          $"point.SignalType".as("freq"),
+          $"point.Satellite".as("sat"),
+          $"point.Prn".as("prn"),
+          $"point.GloFreq".as("glofreq"),
+          $"point.Power".as("power"))
 
     val ismrawtecDeser =
       ismrawtecStream
@@ -261,6 +281,19 @@ object TecCalculationV2 extends Serializable {
           $"point.PrimarySignal".as("primaryfreq"),
           $"point.SecondarySignal".as("secondaryfreq"),
           $"point.Tec".as("tec"))
+
+    val ismredobsDeser =
+      ismredobsStream
+        .select(from_avro($"value", ismredobsSchema).as("array"))
+        .withColumn("point", explode($"array"))
+        .select(
+          $"point.Timestamp".as("time"),
+          $"point.NavigationSystem".as("system"),
+          $"point.SignalType".as("freq"),
+          $"point.Satellite".as("sat"),
+          $"point.Prn".as("prn"),
+          $"point.GloFreq".as("glofreq"),
+          $"point.TotalS4".as("totals4"))
 
     val rangeDeser =
       rangeStream
@@ -291,8 +324,10 @@ object TecCalculationV2 extends Serializable {
           $"point.NavigationSystem".as("system"),
           $"point.Prn".as("prn"))
 
-    jdbcSink(rangeDeser, "rawdata.range").start()
+    jdbcSink(ismdetobsDeser, "rawdata.ismdetobs").start()
     jdbcSink(ismrawtecDeser, "rawdata.ismrawtec").start()
+    jdbcSink(ismredobsDeser, "rawdata.ismredobs").start()
+    jdbcSink(rangeDeser, "rawdata.range").start()
     jdbcSink(satxyz2Deser, "rawdata.satxyz2").start()
 
     // Calculations (computed)
@@ -354,6 +389,78 @@ object TecCalculationV2 extends Serializable {
         .select("time", "sat", "sigcomb", "f1", "f2", "avgNT", "delNT")
 
     jdbcSink(derivativesNT, "computed.NTDerivatives").start()
+
+    // Sigma calculation
+
+    val xz1 =
+      derivativesNT
+        .withColumn("ts", expr("timestamp_millis(time)"))
+        .withWatermark("ts", "120 seconds")
+        .groupBy($"sat", $"sigcomb",
+          window($"ts", "1 second"))
+        .agg(
+          first($"time").as("time"),
+          $"sat",
+          $"sigcomb",
+          first($"f1").as("f1"),
+          first($"f2").as("f2"),
+          stddev_pop($"delNT").as("sigNT"))
+        .withColumn("sigPhi", sigPhi($"sigNT", $"f1"))
+        .withColumn("gamma", gamma($"sigPhi"))
+        .withColumn("Fc", fc($"sigPhi", $"f1"))
+        .withColumn("Pc", pc($"sigPhi"))
+        .select("time", "sat", "sigcomb", "f1", "f2",
+                "sigNT", "sigPhi", "gamma", "Fc", "Pc")
+
+    jdbcSink(xz1, "computed.xz1").start()
+
+    // S4 C/No calculation
+
+    val S4cno =
+      rangeTimestamped
+        .groupBy($"sat", $"freq",
+          window($"ts", "1 second"))
+        .agg(
+          first($"time").as("time"),
+          $"sat",
+          $"freq",
+          avg(pow(pow(10, $"cno"/10), 2)).as("c1"),
+          avg(pow(10, $"cno"/10)).as("c2"))
+        .withColumn("s4", ($"c1" - pow($"c2", 2)) / pow($"c2", 2))
+        .select("time", "sat", "freq", "s4")
+
+    jdbcSink(S4cno, "computed.s4cno").start()
+
+    // S4 Power calculation
+
+    val ismdetobsTimestamped =
+      ismdetobsDeser
+        .withColumn("ts", expr("timestamp_millis(time)"))
+        .withWatermark("ts", "10 seconds")
+
+    val S4pwr =
+      ismdetobsTimestamped
+        .groupBy($"sat", $"freq",
+          window($"ts", "1 second"))
+        .agg(
+          first($"time").as("time"),
+          $"sat",
+          $"freq",
+          avg(pow($"power", 2)).as("c1"),
+          avg($"power").as("c2"))
+        .withColumn("s4", sqrt(($"c1" - pow($"c2", 2)) / pow($"c2", 2)))
+        .select("time", "sat", "freq", "s4")
+
+    jdbcSink(S4pwr, "computed.s4pwr").start()
+
+    // S4 calculation
+
+    val S4 =
+      xz1
+        .select($"time", $"sat", $"sigcomb",
+          (sqrt(lit(1) - exp(lit(-2) * pow($"sigPhi", 2)))).as("s4"))
+
+    jdbcSink(S4, "computed.s4").start()
 
     spark.streams.awaitAnyTermination()
   }

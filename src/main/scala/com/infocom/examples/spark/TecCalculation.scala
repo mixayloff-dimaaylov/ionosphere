@@ -27,41 +27,6 @@ import scala.collection.mutable
 
 import Functions._
 
-object SigNtFunctions extends Serializable {
-  /**
-   * СКО флуктуаций фазы на фазовом экране
-   *
-   */
-  def sigPhi(sigNT: Double, f: Double): Double = {
-    1e16 * 80.8 * math.Pi * sigNT / (C * f)
-  }
-
-  /**
-   * Расчет параметра Райса (глубины общих замираний)
-   *
-   */
-  def gamma(sigPhi: Double): Double = {
-    1 / math.exp(math.pow(sigPhi, 2) + 1)
-  }
-
-  /**
-   * Расчет интервала частотной корреляции
-   *
-   */
-  def fc(sigPhi: Double, f: Double): Double = {
-    f / (math.sqrt(2) * sigPhi)
-  }
-
-  /**
-   * Расчет интервала пространственной корреляции
-   *
-   */
-  def pc(sigPhi: Double): Double = {
-    val Lc = 200 //Средний размер неоднородностей
-    Lc / sigPhi
-  }
-}
-
 object TecCalculation extends Serializable {
   @transient var jdbcUri = ""
   @transient val jdbcProps = new Properties()
@@ -585,16 +550,11 @@ object TecCalculation extends Serializable {
       jdbcProps
     )
 
-    val uSigPhi = udf(SigNtFunctions.sigPhi _)
-    val uGamma = udf(SigNtFunctions.gamma _)
-    val uFc = udf(SigNtFunctions.fc _)
-    val uPc = udf(SigNtFunctions.pc _)
-
     val result = rawData
-      .withColumn("sigPhi", uSigPhi($"sigNT", $"f1"))
-      .withColumn("gamma", uGamma($"sigPhi"))
-      .withColumn("Fc", uFc($"sigPhi", $"f1"))
-      .withColumn("Pc", uPc($"sigPhi"))
+      .withColumn("sigPhi", sigPhi($"sigNT", $"f1"))
+      .withColumn("gamma", gamma($"sigPhi"))
+      .withColumn("Fc", fc($"sigPhi", $"f1"))
+      .withColumn("Pc", pc($"sigPhi"))
 
     //result.show
 
