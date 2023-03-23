@@ -19,6 +19,8 @@ package com.infocom.examples.spark
 import java.nio.file.{Files, Paths}
 import java.util.{Properties, UUID}
 
+import scala.math
+
 import org.apache.spark.sql._
 import org.apache.spark.sql.avro.functions.from_avro
 import org.apache.spark.sql.expressions.UserDefinedFunction
@@ -100,28 +102,51 @@ object TecCalculationV2 extends Serializable {
     Encoders.kryo[DigitalFilter]
   @transient implicit val tuple2Encoder: Encoder[Tuple2[DigitalFilter, DigitalFilter]] =
     Encoders.kryo[Tuple2[DigitalFilter, DigitalFilter]]
+  @transient implicit val tuple4Encoder: Encoder[Tuple4[DigitalFilter, DigitalFilter, Int, Long]] =
+    Encoders.kryo[Tuple4[DigitalFilter, DigitalFilter, Int, Long]]
 
   /* Digital filter handler for flatMapGroupsWithState */
   private def digitalFilter(
       satcomb: Tuple2[String, String],
       input: Iterator[RangeNT],
-      state: GroupState[(DigitalFilter, DigitalFilter)]):
+      state: GroupState[(DigitalFilter, DigitalFilter, Int, Long)]):
         Iterator[RangeDerNT] = {
 
     val curState = state.getOption
-    var (avgF, delF) = if (curState.isEmpty) {
-      (DigitalFilters.avgNt, DigitalFilters.delNt)
+    var (avgF, delF, skipped, lastSeen) = if (curState.isEmpty) {
+      (DigitalFilters.avgNt, DigitalFilters.delNt, 0, (0: Long))
     } else {
       state.get
     }
 
     // Flatten Objects
-    val res = input.toSeq.sortWith(_.time < _.time).map({
+    var res = input.toSeq.sortWith(_.time < _.time).map({
       case RangeNT(time, sat, sigcomb, f1, f2, nt, adrNt, psrNt) =>
         RangeDerNT(time, sat, sigcomb, f1, f2, avgF(nt), delF(nt))
     })
 
-    state.update((avgF, delF))
+    // Forget last timespan and disruptions
+    skipped = res.lastOption match {
+      case Some(l) =>
+        if ((l.time - lastSeen) > 60000) 0
+        else skipped
+      case None    => 0
+    }
+
+    // Update last seen time for satellite
+    lastSeen = res.lastOption match {
+      case Some(l) => l.time
+      case None    => 0
+    }
+
+    // Cut off filter spikes/splashes (500 points / 50 Hz = 10 seconds)
+    if (skipped < 500) {
+      val skip = math.min(500 - skipped, res.length)
+      res = res.drop(skip)
+      skipped += skip
+    }
+
+    state.update((avgF, delF, skipped, lastSeen))
 
     res.iterator
   }
