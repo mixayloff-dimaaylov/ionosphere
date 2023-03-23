@@ -395,7 +395,7 @@ object TecCalculationV2 extends Serializable {
     val xz1 =
       derivativesNT
         .withColumn("ts", expr("timestamp_millis(time)"))
-        .withWatermark("ts", "120 seconds")
+        .withWatermark("ts", "20 seconds")
         .groupBy($"sat", $"sigcomb",
           window($"ts", "1 second"))
         .agg(

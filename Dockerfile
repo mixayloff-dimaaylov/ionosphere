@@ -42,6 +42,7 @@ CMD /spark/bin/spark-submit \
 	--conf spark.yarn.am.attemptFailuresValidityInterval=1h \
 	--conf spark.yarn.max.executor.failures=8 \
 	--conf spark.yarn.executor.failuresValidityInterval=1h \
+	--conf spark.sql.shuffle.partitions=1 \
 	/spark/jars/novatel-streaming-assembly-1.0.jar \
     $KAFKA_HOST:9092 $CH_HOST:8123
 
