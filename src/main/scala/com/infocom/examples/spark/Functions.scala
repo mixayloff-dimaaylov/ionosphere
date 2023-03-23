@@ -17,8 +17,8 @@
 package com.infocom.examples.spark
 
 import org.apache.spark.sql.expressions.UserDefinedFunction
-import org.apache.spark.sql.functions.udf
-import scala.math._
+import org.apache.spark.sql.functions._
+import scala.math
 
 object Functions extends Serializable {
   val LARGE_WINDOW_SIZE = 30000L
@@ -204,7 +204,7 @@ object Functions extends Serializable {
   }
 
   def s4: UserDefinedFunction = udf {
-    (fluctuation: Double) => sqrt(1 - exp(-2.0 * fluctuation))
+    (fluctuation: Double) => math.sqrt(1 - math.exp(-2.0 * fluctuation))
   }
 
   def s4intensity: UserDefinedFunction = udf {
@@ -212,15 +212,17 @@ object Functions extends Serializable {
   }
 
   def rice: UserDefinedFunction = udf {
-    (fluctuation: Double) => 1 / exp(pow(fluctuation, 2) - 1)
+    (fluctuation: Double) => 1 / math.exp(math.pow(fluctuation, 2) - 1)
   }
 
   def errorRice: UserDefinedFunction = udf {
-    (rice: Double, cno: Double) => ((rice + 1) / (cno + 2 * (rice + 1))) * exp(-(rice * cno) / (cno + 2 * (rice + 1)))
+    (rice: Double, cno: Double) =>
+      ((rice + 1) / (cno + 2 * (rice + 1))) * math.exp(-(rice * cno) / (cno + 2 * (rice + 1)))
   }
 
   def errorS4: UserDefinedFunction = udf {
-    (s4: Double, cno: Double) => pow((2.0 / pow(s4, 2)) / (cno + (2 / pow(s4, 2))), 1 / pow(s4, 2)) / 2
+    (s4: Double, cno: Double) =>
+      math.pow((2.0 / math.pow(s4, 2)) / (cno + (2 / math.pow(s4, 2))), 1 / math.pow(s4, 2)) / 2
   }
 }
 

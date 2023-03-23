@@ -100,7 +100,7 @@ object RangeCalculations {
     val Ks = range
       .withColumn("rank", dense_rank.over(rankWindow))
       .where($"rank" <= K_SET_SIZE)
-      .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2")).as("K"))
+      .agg(avg(k($"adr1", $"adr2", $"f1", $"f2", $"psr1", $"psr2", lit(0))).as("K"))
 
     val computed = range
       .withColumn("f1", f($"system", $"freq", $"glofreq"))
