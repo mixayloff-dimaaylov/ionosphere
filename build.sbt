@@ -24,7 +24,7 @@ ThisBuild / version := "1.0"
 
 val assemblyName = "novatel-streaming-assembly"
 
-ThisBuild / scalaVersion := "2.11.12"
+ThisBuild / scalaVersion := "2.12.17"
 
 scalariformAutoformat := false
 
@@ -37,13 +37,17 @@ scalacOptions ++= Seq(
   "-encoding", "UTF-8", // yes, this is 2 args
   "-feature",
   "-unchecked",
-  "-Xfatal-warnings",
   "-Xlint",
   "-Yno-adapted-args",
   "-Ywarn-numeric-widen",
   "-Ywarn-value-discard",
   "-Xfuture"
 )
+
+scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")
+
+// Ref: Disable warts for console
+scalacOptions in (Compile, console) := (console / scalacOptions).value.filterNot(_.contains("wartremover"))
 
 wartremoverErrors ++= Seq(
   Wart.StringPlusAny,
@@ -65,11 +69,9 @@ wartremoverErrors ++= Seq(
   Wart.While
 )
 
-val sparkVersion = "2.2.1"
+val sparkVersion = "3.3.0"
 
 val hbaseVersion = "1.2.0-cdh5.14.0"
-
-val sparkAvroVersion = "3.1.0"
 
 resolvers ++= Seq(
   "cloudera" at "https://repository.cloudera.com/artifactory/cloudera-repos/"
@@ -81,12 +83,11 @@ val isALibrary = true //this is a library project
 
 val assemblyDependencies = (scope: String) => Seq(
   "ch.hsr" % "geohash" % "1.3.0" % scope,
-  "ru.yandex.clickhouse" % "clickhouse-jdbc" % "0.1.55" % scope,
-  "org.apache.httpcomponents" % "httpclient" % "4.5.2" % scope,
-  "org.apache.httpcomponents" % "httpmime" % "4.5.2" % scope,
+  "com.clickhouse" % "clickhouse-jdbc" % "0.3.2" % scope,
 
+  "org.apache.spark" %% "spark-avro" % sparkVersion,
   "org.apache.spark" %% "spark-streaming-kafka-0-10" % sparkVersion,
-  "com.databricks" %% "spark-avro" % sparkAvroVersion
+  "org.apache.spark" %% "spark-sql-kafka-0-10" % sparkVersion
 )
 
 /*if it's a library the scope is "compile" since we want the transitive dependencies on the library
@@ -98,7 +99,7 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-sql" % sparkVersion,
   "org.apache.spark" %% "spark-yarn" % sparkVersion,
   "org.apache.spark" %% "spark-mllib" % sparkVersion,
-  "org.apache.spark" %% "spark-streaming" % sparkVersion 
+  "org.apache.spark" %% "spark-streaming" % sparkVersion
 ) ++ assemblyDependencies(assemblyDependenciesScope)
 
 //Trick to make Intellij/IDEA happy
@@ -122,7 +123,12 @@ Test / parallelExecution := false
 
 lazy val root = (project in file(".")).
   configs(IntegrationTest).
-  settings(Defaults.itSettings: _*).
+  settings(
+    Defaults.itSettings,
+    // Cache for speedup sbt on ephemeral Docker containers
+    // Ref: https://github.com/sbt/sbt/issues/3270
+    ivyPaths := { IvyPaths(baseDirectory.value, Some(target.value / ".ivy2")) },
+  ).
   // enablePlugins(AutomateHeaderPlugin).
   enablePlugins(JavaAppPackaging).
   enablePlugins(AssemblyPlugin)
@@ -133,12 +139,19 @@ lazy val projectAssembly = (project in file("assembly")).
     assembly / test := {},
     assembly / assemblyOption := (assembly / assemblyOption).value,
     assembly / assemblyMergeStrategy := {
-      case PathList("org", "apache", xs @ _*) => MergeStrategy.last
-      case "log4j.properties" => MergeStrategy.last
-      case "org/apache/spark/unused/UnusedStubClass.class" => MergeStrategy.last
-      case x =>
-        val oldStrategy = (assembly / assemblyMergeStrategy).value
-        oldStrategy(x)
+      // Literraly silver bullet:
+      // Ref: http://java.msk.ru/literally-a-silver-bullet-for-sbt-merge-strategies-in-projects-using-spark-structured-streaming-and-kafka/
+      case "META-INF/services/org.apache.spark.sql.sources.DataSourceRegister" => MergeStrategy.concat
+      case PathList("META-INF", xs @ _*) =>
+        xs map {_.toLowerCase} match {
+          case ("manifest.mf" :: Nil) | ("index.list" :: Nil) | ("dependencies" :: Nil) =>
+            MergeStrategy.discard
+                    case "services" :: _ =>  MergeStrategy.filterDistinctLines
+          case ps @ (x :: xs) if ps.last.endsWith(".sf") || ps.last.endsWith(".dsa") =>
+            MergeStrategy.discard
+          case _ => MergeStrategy.first
+        }
+      case _ => MergeStrategy.first
     },
     assembly / assemblyJarName := s"$assemblyName-${version.value}.jar",
     libraryDependencies ++= assemblyDependencies("compile")
@@ -157,7 +170,7 @@ Universal / mappings := {
       !n.endsWith(s"${organization.value}.${name.value}-${version.value}.jar")
   }
 
-  val fatJar: File = new File(s"${System.getProperty("user.dir")}/target/scala-2.11/${name.value}_2.11-${version.value}.jar")
+  val fatJar: File = new File(s"${System.getProperty("user.dir")}/target/scala-2.12/${name.value}_2.12-${version.value}.jar")
   filtered :+ (fatJar -> ("lib/" + fatJar.getName))
 }
 

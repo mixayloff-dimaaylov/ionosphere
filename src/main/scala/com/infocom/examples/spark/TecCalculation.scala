@@ -27,159 +27,6 @@ import scala.collection.mutable
 
 import Functions._
 
-object NtFunctions extends Serializable {
-  /**
-   * ПЭС без поправок
-   * @param dnt смещение, м
-   */
-  def psrNt: UserDefinedFunction = udf {
-    (psr1: Double, psr2: Double, f1: Double, f2: Double, sdcb: Double) =>
-      {
-        val f1_2 = f1 * f1
-        val f2_2 = f2 * f2
-
-        ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (psr2 - psr1 + sdcb)
-      }
-  }
-
-  /**
-   * ПЭС без поправок
-   * @param dnt смещение, м
-   */
-  def rawNt: UserDefinedFunction = udf {
-    (adr1: Double, adr2: Double, f1: Double, f2: Double, dnt: Double) => {
-      val f1_2 = f1 * f1
-      val f2_2 = f2 * f2
-
-      ((1e-16 * f1_2 * f2_2) / (40.308 * (f1_2 - f2_2))) * (adr2 * waveLength(f2) - adr1 * waveLength(f1) + dnt)
-    }
-  }
-
-  /**
-   * Расчет автокорреляционной функции (АКФ) флуктуаций ПЭС
-   *
-   * @param seq последовательность delNT
-   * @return Интервал временной корреляции
-   */
-  def timeCorrelation(seq: Seq[Double]): Double = {
-    val seqSum = (seq, seq).zipped.map(_ * _).sum
-
-    val index = Seq.range(1, seq.length)
-      .indexWhere(i => (seq.drop(i), seq).zipped.map(_ * _).sum / seqSum < 1 / Math.E)
-      .toDouble
-
-    if (index < 2) 0 else index * 0.02
-  }
-
-  /**
-   * Рассчет i-го элемента АКФ флуктуаций ПЭС
-   */
-  def timeCorrelationItem(i: Int)(seq: Seq[Double]): Double = {
-    val seqSum = (seq, seq).zipped.map(_ * _).sum
-
-    (seq.drop(i), seq).zipped.map(_ * _).sum / seqSum
-  }
-}
-
-object DigitalFilters extends Serializable {
-  def avgNt(nt: Seq[Double], avgNt: Seq[Double]): Double = {
-    val b = Seq(
-      0.00000004863987500780838,
-      0.00000029183925004685027,
-      0.00000072959812511712565,
-      0.00000097279750015616753,
-      0.00000072959812511712565,
-      0.00000029183925004685027,
-      0.00000004863987500780838
-    )
-
-    val a = Seq(
-      -5.5145351211661655,
-      12.689113056515138,
-      -15.593635210704097,
-      10.793296670485379,
-      -3.9893594042308829,
-      0.6151231220526282
-    )
-
-    butterworthFilter(b, a, nt, avgNt)
-  }
-
-  def delNt(nt: Seq[Double], delNt: Seq[Double]): Double = {
-    val b = Seq(
-      0.076745906902313671,
-      0,
-      -0.23023772070694101,
-      0,
-      0.23023772070694101,
-      0,
-      -0.076745906902313671
-    )
-
-    val a = Seq(
-      -3.4767608600037727,
-      5.0801848641096203,
-      -4.2310052826910152,
-      2.2392861745041328,
-      -0.69437337677433475,
-      0.084273573849621822
-    )
-
-    butterworthFilter(b, a, nt, delNt)
-  }
-
-  @SuppressWarnings(Array("org.wartremover.warts.Throw"))
-  private def butterworthFilter(b: Seq[Double], a: Seq[Double], bInputSeq: Seq[Double], aInputSeq: Seq[Double]): Double = {
-    if (b.length !== bInputSeq.length) throw
-      new IllegalArgumentException(s"The length of b must be equal to bInputSeq length")
-
-    if (a.length !== aInputSeq.length) throw
-      new IllegalArgumentException(s"The length of a must be equal to aInputSeq length")
-
-    (b, bInputSeq).zipped.map((x, y) => x * y).sum - (a, aInputSeq).zipped.map((x, y) => x * y).sum
-  }
-
-  @SuppressWarnings(Array("org.wartremover.warts.Equals"))
-  implicit final class AnyOps[A](self: A) {
-    def !==(other: A): Boolean = self != other
-  }
-}
-
-object SigNtFunctions extends Serializable {
-  /**
-   * СКО флуктуаций фазы на фазовом экране
-   *
-   */
-  def sigPhi(sigNT: Double, f: Double): Double = {
-    1e16 * 80.8 * math.Pi * sigNT / (C * f)
-  }
-
-  /**
-   * Расчет параметра Райса (глубины общих замираний)
-   *
-   */
-  def gamma(sigPhi: Double): Double = {
-    1 / math.exp(math.pow(sigPhi, 2) + 1)
-  }
-
-  /**
-   * Расчет интервала частотной корреляции
-   *
-   */
-  def fc(sigPhi: Double, f: Double): Double = {
-    f / (math.sqrt(2) * sigPhi)
-  }
-
-  /**
-   * Расчет интервала пространственной корреляции
-   *
-   */
-  def pc(sigPhi: Double): Double = {
-    val Lc = 200 //Средний размер неоднородностей
-    Lc / sigPhi
-  }
-}
-
 object TecCalculation extends Serializable {
   @transient var jdbcUri = ""
   @transient val jdbcProps = new Properties()
@@ -187,11 +34,9 @@ object TecCalculation extends Serializable {
   @transient private var DNTMap = mutable.Map[(String, String), Double]()
 
   @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
-  @transient private val NTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
+  @transient private val avgNTMap = mutable.Map[(String, String), DigitalFilter]()
   @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
-  @transient private val avgNTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
-  @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
-  @transient private val delNTMap = mutable.Map[(String, String), mutable.Seq[Double]]()
+  @transient private val delNTMap = mutable.Map[(String, String), DigitalFilter]()
 
   {
     jdbcProps.setProperty("isolationLevel", "NONE")
@@ -222,8 +67,8 @@ object TecCalculation extends Serializable {
     runJob(spark, from)
   }
 
-  @SuppressWarnings(Array("org.wartremover.warts.Var"))
-  @SuppressWarnings(Array("org.wartremover.warts.While"))
+  @SuppressWarnings(Array("org.wartremover.warts.Var",
+                          "org.wartremover.warts.While"))
   def fire(repeat: String): Unit = {
     val spark = getOrCreateSession("TEC Range Calculations")
 
@@ -295,9 +140,6 @@ object TecCalculation extends Serializable {
 
     // выкинуть все значения, которых нет в range
     DNTMap --= (DNTMap -- rangeList).keys
-    NTMap    --= (NTMap -- rangeList).keys
-    avgNTMap --= (avgNTMap -- rangeList).keys
-    delNTMap --= (delNTMap -- rangeList).keys
 
     range.collect().foreach(row => {
       val sat = row(0).toString
@@ -452,9 +294,9 @@ object TecCalculation extends Serializable {
     //range.show()
 
     val tecRange = range
-      .withColumn("nt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2", $"DNT"))
-      .withColumn("adrNt", NtFunctions.rawNt($"adr1", $"adr2", $"f1", $"f2", lit("0")))
-      .withColumn("psrNt", NtFunctions.psrNt($"psr1", $"psr2", $"f1", $"f2", lit("0")))
+      .withColumn("nt", rawNt($"adr1", $"adr2", $"f1", $"f2", $"DNT"))
+      .withColumn("adrNt", rawNt($"adr1", $"adr2", $"f1", $"f2", lit("0")))
+      .withColumn("psrNt", psrNt($"psr1", $"psr2", $"f1", $"f2", lit("0")))
       .select("time", "sat", "sigcomb", "f1", "f2", "nt", "adrNt", "psrNt")
 
     //tecRange.show()
@@ -646,54 +488,36 @@ object TecCalculation extends Serializable {
     @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
     var time = rawData.select("time").map(r => r.getDecimal(0)).collect().toSeq
     val nt = rawData.select("nt").map(r => r.getDouble(0)).collect().toSeq
-
-    val filterOrder = 6
-    val zero: Double = 0;
-
-    @SuppressWarnings(Array("org.wartremover.warts.MutableDataStructures"))
-    val zeroSeq = mutable.Seq.fill[Double](filterOrder)(zero)
-    val NTSeq = NTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder, zero) ++ nt
-    var avgNTSeq = avgNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
-    var delNtSeq = delNTMap.getOrElse((sat, sigcomb), zeroSeq).padTo(filterOrder + nt.length, zero)
-
-    for (i <- 6 until NTSeq.length) {
-      val nt7 = Seq(NTSeq(i), NTSeq(i - 1), NTSeq(i - 2), NTSeq(i - 3), NTSeq(i - 4), NTSeq(i - 5), NTSeq(i - 6))
-
-      avgNTSeq(i) = DigitalFilters.avgNt(nt7, Seq(avgNTSeq(i - 1), avgNTSeq(i - 2), avgNTSeq(i - 3), avgNTSeq(i - 4), avgNTSeq(i - 5), avgNTSeq(i - 6)))
-      delNtSeq(i) = DigitalFilters.delNt(nt7, Seq(delNtSeq(i - 1), delNtSeq(i - 2), delNtSeq(i - 3), delNtSeq(i - 4), delNtSeq(i - 5), delNtSeq(i - 6)))
-    }
+    var avgF = avgNTMap.getOrElse((sat, sigcomb), DigitalFilters.avgNt)
+    var delF = delNTMap.getOrElse((sat, sigcomb), DigitalFilters.delNt)
+    var avgNTSeq = avgF(nt)
+    var delNtSeq = delF(nt)
 
     // TODO: Find a more mathematically correct solution to the problem of
     // spikes in general
-    if(NTMap.contains((sat, sigcomb)))
-    {
-      val df = (time, avgNTSeq.drop(filterOrder), delNtSeq.drop(filterOrder))
-        .zipped.toSeq.toDF("time", "avgNT", "delNT")
-        //df.show
+    val df = (time, avgNTSeq, delNtSeq)
+      .zipped.toSeq.toDF("time", "avgNT", "delNT")
 
-      val result = rawData.join(df, Seq("time")).orderBy("time")
-      //result.show
+    val result = rawData.join(df, Seq("time")).orderBy("time")
 
-      //        CREATE TABLE computed.NTDerivatives (
-      //          time UInt64,
-      //          sat String,
-      //          sigcomb String,
-      //          f1 Float64,
-      //          f2 Float64,
-      //          avgNT Float64,
-      //          delNT Float64,
-      //          d Date MATERIALIZED toDate(round(time / 1000))
-      //        ) ENGINE = ReplacingMergeTree(d, (time, sat, sigcomb), 8192)
-      //        TTL d + INTERVAL 2 Week DELETE
+    //        CREATE TABLE computed.NTDerivatives (
+    //          time UInt64,
+    //          sat String,
+    //          sigcomb String,
+    //          f1 Float64,
+    //          f2 Float64,
+    //          avgNT Float64,
+    //          delNT Float64,
+    //          d Date MATERIALIZED toDate(round(time / 1000))
+    //        ) ENGINE = ReplacingMergeTree(d, (time, sat, sigcomb), 8192)
+    //        TTL d + INTERVAL 2 Week DELETE
 
-      result
-        .select("time", "sat", "sigcomb", "f1", "f2", "avgNT", "delNT")
-        .write.mode("append").jdbc(jdbcUri, "computed.NTDerivatives", jdbcProps)
-    }
+    result
+      .select("time", "sat", "sigcomb", "f1", "f2", "avgNT", "delNT")
+      .write.mode("append").jdbc(jdbcUri, "computed.NTDerivatives", jdbcProps)
 
-    NTMap((sat, sigcomb)) = NTSeq.takeRight(filterOrder)
-    avgNTMap((sat, sigcomb)) = avgNTSeq.takeRight(filterOrder)
-    delNTMap((sat, sigcomb)) = delNtSeq.takeRight(filterOrder)
+    avgNTMap((sat, sigcomb)) = avgF
+    delNTMap((sat, sigcomb)) = delF
   }
 
   def runJobXz1(spark: SparkSession, from: Long, to: Long): Unit = {
@@ -726,16 +550,11 @@ object TecCalculation extends Serializable {
       jdbcProps
     )
 
-    val uSigPhi = udf(SigNtFunctions.sigPhi _)
-    val uGamma = udf(SigNtFunctions.gamma _)
-    val uFc = udf(SigNtFunctions.fc _)
-    val uPc = udf(SigNtFunctions.pc _)
-
     val result = rawData
-      .withColumn("sigPhi", uSigPhi($"sigNT", $"f1"))
-      .withColumn("gamma", uGamma($"sigPhi"))
-      .withColumn("Fc", uFc($"sigPhi", $"f1"))
-      .withColumn("Pc", uPc($"sigPhi"))
+      .withColumn("sigPhi", sigPhi($"sigNT", $"f1"))
+      .withColumn("gamma", gamma($"sigPhi"))
+      .withColumn("Fc", fc($"sigPhi", $"f1"))
+      .withColumn("Pc", pc($"sigPhi"))
 
     //result.show
 
@@ -783,15 +602,15 @@ object TecCalculation extends Serializable {
       jdbcProps
     )
 
-    val uTimeCorrelation = udf(NtFunctions.timeCorrelation _)
-    //    val uTimeCorrelation0 = udf(NtFunctions.timeCorrelationItem(0) _)
-    //    val uTimeCorrelation1 = udf(NtFunctions.timeCorrelationItem(1) _)
-    //    val uTimeCorrelation2 = udf(NtFunctions.timeCorrelationItem(2) _)
-    //    val uTimeCorrelation3 = udf(NtFunctions.timeCorrelationItem(3) _)
-    //    val uTimeCorrelation4 = udf(NtFunctions.timeCorrelationItem(4) _)
-    //    val uTimeCorrelation5 = udf(NtFunctions.timeCorrelationItem(5) _)
-    //    val uTimeCorrelation6 = udf(NtFunctions.timeCorrelationItem(6) _)
-    //    val uTimeCorrelation7 = udf(NtFunctions.timeCorrelationItem(7) _)
+    val uTimeCorrelation = udf(timeCorrelation _)
+    //    val uTimeCorrelation0 = udf(timeCorrelationItem(0) _)
+    //    val uTimeCorrelation1 = udf(timeCorrelationItem(1) _)
+    //    val uTimeCorrelation2 = udf(timeCorrelationItem(2) _)
+    //    val uTimeCorrelation3 = udf(timeCorrelationItem(3) _)
+    //    val uTimeCorrelation4 = udf(timeCorrelationItem(4) _)
+    //    val uTimeCorrelation5 = udf(timeCorrelationItem(5) _)
+    //    val uTimeCorrelation6 = udf(timeCorrelationItem(6) _)
+    //    val uTimeCorrelation7 = udf(timeCorrelationItem(7) _)
 
     val result = rawData
       .groupBy("time", "sat", "sigcomb")

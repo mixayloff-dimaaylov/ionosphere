@@ -30,6 +30,8 @@ import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
 import org.apache.spark.streaming.kafka010._
 import scala.reflect._
 
+@deprecated("Broken until NovAtelLogReader updates to schema with sorted fields",
+            "logserver-spark 0.2.0")
 object StreamReceiver {
   def main(args: Array[String]): Unit = {
     System.out.println("Run main")

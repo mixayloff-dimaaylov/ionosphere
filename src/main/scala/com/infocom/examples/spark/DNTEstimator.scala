@@ -14,22 +14,39 @@
  * limitations under the License.
  */
 
-logLevel := Level.Warn
+/*
+ * Stateful DNT estimator.
+ */
 
-addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "1.2.0")
+package com.infocom.examples.spark;
 
-addSbtPlugin("com.timushev.sbt" % "sbt-updates" % "0.6.2")
+@SuppressWarnings(Array("org.wartremover.warts.Equals"))
+class DNTEstimator(
+  /*
+   * Timeout to reset current DNT.
+   */
+    val timeOut: Long) extends Serializable {
 
-addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.9.2")
+  private var cnt: Int = 0
+  private var acc: Double = 0
+  private var lastSeen: Long = 0
 
-addSbtPlugin("org.wartremover" % "sbt-wartremover" % "2.4.20")
+  def reset() = {
+    acc = 0
+    cnt = 0
+  }
 
-addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
+  def apply(input: Double, time: Long): Double = {
+    if((time - lastSeen) > timeOut) {
+      reset()
+    }
 
-addSbtPlugin("org.scalariform" % "sbt-scalariform" % "1.8.3")
+    if(cnt < 3000){
+      acc += input
+      cnt += 1
+    }
 
-addSbtPlugin("de.heikoseeberger" % "sbt-header" % "5.6.5")
-
-addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.8.1")
-
-addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "5.2.4")
+    lastSeen = time
+    acc / cnt
+  }
+}

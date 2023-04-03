@@ -146,20 +146,32 @@ object StreamFunctions {
   }
 
   def satGeoPoint(xyz: DataPointSatxyz2): Long = {
-    val lla = ecef2lla(Array(xyz.X, xyz.Y, xyz.Z))
+    satGeoPoint(xyz.X, xyz.Y, xyz.Z)
+  }
+
+  def satGeoPoint(X: Double, Y: Double, Z: Double): Long = {
+    val lla = ecef2lla(Array(X, Y, Z))
 
     GeoHash.withBitPrecision(lla(0), lla(1), 52).longValueLeft
   }
 
   def satIonPoint(xyz: DataPointSatxyz2): Long = {
-    val point = Array(xyz.X, xyz.Y, xyz.Z)
+    satIonPoint(xyz.X, xyz.Y, xyz.Z)
+  }
+
+  def satIonPoint(X: Double, Y: Double, Z: Double): Long = {
+    val point = Array(X, Y, Z)
     val lla = ecef2lla(intersection(point, get_unit_vector(get_vector(point, receiver))))
 
     GeoHash.withBitPrecision(lla(0), lla(1), 52).longValueLeft
   }
 
   def satElevation(xyz: DataPointSatxyz2): Double = {
-    val point = Array(xyz.X, xyz.Y, xyz.Z)
+    satElevation(xyz.X, xyz.Y, xyz.Z)
+  }
+
+  def satElevation(X: Double, Y: Double, Z: Double): Double = {
+    val point = Array(X, Y, Z)
 
     getElevation(normal(receiver), get_vector(receiver, point))
   }
