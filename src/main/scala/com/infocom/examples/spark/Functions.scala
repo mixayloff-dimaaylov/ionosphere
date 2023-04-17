@@ -44,11 +44,12 @@ object Functions extends Serializable {
 
         case "GPS" =>
           freq match {
-            case "L1CA"       => 1575.42e6
-            case "L2C"        => 1227.60e6
-            case "L2P"        => 1227.60e6
-            case "L5Q"        => 1176.45e6
-            case _            => 0
+            case "L1CA"         => 1575.42e6
+            case "L2C"          => 1227.60e6
+            case "L2P"          => 1227.60e6
+            case "L2P_codeless" => 1227.60e6
+            case "L5Q"          => 1176.45e6
+            case _              => 0
           }
 
         case _ => 0
