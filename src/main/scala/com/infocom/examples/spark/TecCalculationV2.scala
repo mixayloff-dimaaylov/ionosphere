@@ -377,6 +377,11 @@ object TecCalculationV2 extends Serializable {
         .withColumn("ts", expr("timestamp_millis(time)"))
         .withWatermark("ts", "10 seconds")
 
+    val satxyz2Timestamped =
+      satxyz2Deser
+        .withColumn("ts", expr("timestamp_millis(time)"))
+        .withWatermark("ts", "10 seconds")
+
     val rangePrep =
       rangeTimestamped.as("c1")
         .join(rangeTimestamped.as("c2")).where(
@@ -427,7 +432,31 @@ object TecCalculationV2 extends Serializable {
           OutputMode.Append, GroupStateTimeout.ProcessingTimeTimeout())(digitalFilter)
         .select("time", "sat", "sigcomb", "f1", "f2", "avgNT", "delNT")
 
-    jdbcSink(derivativesNT, "computed.NTDerivatives").start()
+    val derivativesNTuncurved =
+      satxyz2Timestamped
+        .withColumn("elevation", radians($"elevation"))
+        .as("c4")
+        // JOIN
+        .join(
+          derivativesNT
+            .withColumn("ts", expr("timestamp_millis(time)"))
+            .withWatermark("ts", "10 seconds").as("c3"), expr("""
+              c3.ts = c4.ts AND
+              c3.time = c4.time AND
+              c3.sat = c4.sat
+              """))
+        .select(
+          $"c3.time".as("time"),
+          $"c3.sat".as("sat"),
+          $"c3.sigcomb".as("sigcomb"),
+          $"c3.f1".as("f1"),
+          $"c3.f2".as("f2"),
+          $"c3.avgNT".as("avgNTcurved"),
+          $"c3.delNT".as("delNTcurved"),
+          (sin($"c4.elevation") * $"c3.avgNT").as("avgNT"),
+          (sin($"c4.elevation") * $"c3.delNT").as("delNT"))
+
+    jdbcSink(derivativesNTuncurved, "computed.NTDerivatives").start()
 
     // Sigma calculation
 
