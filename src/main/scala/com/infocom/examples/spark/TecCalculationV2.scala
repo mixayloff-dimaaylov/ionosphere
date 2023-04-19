@@ -263,6 +263,7 @@ object TecCalculationV2 extends Serializable {
     def jdbcSink(stream: DataFrame, tableName: String) = {
       stream
         .writeStream
+        .queryName(tableName)
         .foreachBatch((batchDF: DataFrame, batchId: Long) => {
           batchDF.write.mode("append")
             .jdbc(jdbcUri, tableName, jdbcProps)
