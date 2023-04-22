@@ -36,20 +36,26 @@ object StreamReceiver {
   def main(args: Array[String]): Unit = {
     System.out.println("Run main")
 
-    if (args.length < 2) {
+    if (args.length < 5) {
       System.out.println("Wrong arguments")
       printHelp()
       System.exit(1)
     }
 
-    if (args.length > 2) {
+    if (args.length > 5) {
       System.out.println("Extra arguments")
       printHelp()
       System.exit(1)
     }
 
-    val kafkaServerAddress = args(0)
-    val clickHouseServerAddress = args(1)
+    val recLat = args(0).toDouble
+    val recLon = args(1).toDouble
+    val recAlt = args(2).toDouble
+
+    val sf = new StreamFunctions(recLat, recLon, recAlt)
+
+    val kafkaServerAddress = args(3)
+    val clickHouseServerAddress = args(4)
     val jdbcUri = s"jdbc:clickhouse://$clickHouseServerAddress"
     val clientUID = s"${UUID.randomUUID}"
 
@@ -121,7 +127,8 @@ object StreamReceiver {
 
     // SATXYZ2
 
-    createKafkaStream[DataPointSatxyz2]("datapoint-raw-satxyz2") map toRow foreachRDD {
+    val toRowSatxyz2: DataPointSatxyz2 => Satxyz2Row = toRow(sf)
+    createKafkaStream[DataPointSatxyz2]("datapoint-raw-satxyz2") map toRowSatxyz2 foreachRDD {
       _.toDF.write.mode("append").jdbc(jdbcUri, "rawdata.satxyz2", jdbcProps)
     }
 
@@ -133,7 +140,10 @@ object StreamReceiver {
 
   def printHelp(): Unit = {
     val usagestr = """
-    Usage: <progname> <kafka_server> <clickhouse_server>
+    Usage: <progname> <lat> <lon> <alt> <kafka_server> <clickhouse_server>
+    <lat>                 - receiver latitude
+    <lon>                 - receiver longitude
+    <alt>                 - receiver altitude
     <kafka_server>        - Kafka server address:port, (string)
     <clickhouse_server>   - ClickHouse server (HTTP-interface) address:port, (string)
     """
