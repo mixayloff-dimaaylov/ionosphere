@@ -28,7 +28,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.streaming.{GroupStateTimeout, OutputMode, GroupState}
 import org.apache.spark.SparkConf
 
-import com.infocom.examples.spark.{StreamFunctions => SF}
+import com.infocom.examples.spark.StreamFunctions
 import Functions._
 
 /* Private RDDs */
@@ -182,37 +182,50 @@ object TecCalculationV2 extends Serializable {
     new String(Files.readAllBytes(Paths.get(path)))
   }
 
-  private def satGeoPoint: UserDefinedFunction = udf {
-    (X: Double, Y: Double, Z: Double) => { SF.satGeoPoint(X, Y, Z) } : Long
-  }
-
-  private def satIonPoint: UserDefinedFunction = udf {
-    (X: Double, Y: Double, Z: Double) => { SF.satIonPoint(X, Y, Z) } : Long
-  }
-
-  private def satElevation: UserDefinedFunction = udf {
-    (X: Double, Y: Double, Z: Double) => { SF.satElevation(X, Y, Z) } : Double
-  }
-
   /* main */
 
   def main(args: Array[String]): Unit = {
     System.out.println("Run main")
 
-    if (args.length < 2) {
+    if (args.length < 5) {
       System.out.println("Wrong arguments")
       printHelp()
       System.exit(1)
     }
 
-    if (args.length > 2) {
+    if (args.length > 5) {
       System.out.println("Extra arguments")
       printHelp()
       System.exit(1)
     }
 
-    val kafkaServerAddress = args(0)
-    val clickHouseServerAddress = args(1)
+    val recLat = args(0).toDouble
+    val recLon = args(1).toDouble
+    val recAlt = args(2).toDouble
+
+    /* Definitions */
+    val sf = new StreamFunctions(recLat, recLon, recAlt)
+
+    def satGeoPoint: UserDefinedFunction = udf {
+      (X: Double, Y: Double, Z: Double) => {
+        sf.satGeoPoint(X, Y, Z)
+      } : Long
+    }
+
+    def satIonPoint: UserDefinedFunction = udf {
+      (X: Double, Y: Double, Z: Double) => {
+        sf.satIonPoint(X, Y, Z)
+      } : Long
+    }
+
+    def satElevation: UserDefinedFunction = udf {
+      (X: Double, Y: Double, Z: Double) => {
+        sf.satElevation(X, Y, Z)
+      } : Double
+    }
+
+    val kafkaServerAddress = args(3)
+    val clickHouseServerAddress = args(4)
     val jdbcUri = s"jdbc:clickhouse://$clickHouseServerAddress"
     val clientUID = s"${UUID.randomUUID}"
 
@@ -493,7 +506,10 @@ object TecCalculationV2 extends Serializable {
 
   def printHelp(): Unit = {
     val usagestr = """
-    Usage: <progname> <kafka_server> <clickhouse_server>
+    Usage: <progname> <lat> <lon> <alt> <kafka_server> <clickhouse_server>
+    <lat>                 - receiver latitude
+    <lon>                 - receiver longitude
+    <alt>                 - receiver altitude
     <kafka_server>        - Kafka server address:port, (string)
     <clickhouse_server>   - ClickHouse server (HTTP-interface) address:port, (string)
     """

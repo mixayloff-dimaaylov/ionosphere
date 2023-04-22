@@ -185,14 +185,14 @@ object ClickHouse {
    */
   case class Satxyz2Row(time: Long, geopoint: Long, ionpoint: Long, elevation: Double, sat: String, system: String, prn: Int)
 
-  def toRow(dp: DataPointSatxyz2): Satxyz2Row = {
+  def toRow(sf: StreamFunctions)(dp: DataPointSatxyz2): Satxyz2Row = {
     System.out.println("Get DataPointSatxyz2")
 
     Satxyz2Row(
       dp.Timestamp,
-      StreamFunctions.satGeoPoint(dp),
-      StreamFunctions.satIonPoint(dp),
-      StreamFunctions.satElevation(dp),
+      sf.satGeoPoint(dp),
+      sf.satIonPoint(dp),
+      sf.satElevation(dp),
       dp.Satellite,
       dp.NavigationSystem.toString,
       dp.Prn

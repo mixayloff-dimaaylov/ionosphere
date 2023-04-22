@@ -22,11 +22,12 @@ import com.infocom.examples.spark.data.DataPointSatxyz2
 /**
  * Created by savartsov on 02.05.2017.
  */
-object StreamFunctions {
+class StreamFunctions(
+    private val observationLat: Double,
+    private val observationLon: Double,
+    private val observationAlt: Double) extends Serializable {
+
   // WGS84 ellipsoid constants
-  private val observationLat: Double = 45.0409515
-  private val observationLon: Double = 41.9108996
-  private val observationAlt: Double = 652.1387
   private val a: Double = 6378137 // radius
   private val e: Double = 8.1819190842622e-2 // eccentricity
   private val asq: Double = Math.pow(a, 2)
