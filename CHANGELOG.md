@@ -1,6 +1,6 @@
 # Change Log
 
-## _unreleased_
+## [0.3.0] - 2023-04-29
 
 ### Changed
 
@@ -26,6 +26,9 @@
   [#17](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/17))
 
 - **breaking(API):** Версия таблиц ClickHouse обновлена с 6 до 16.1
+
+- Теперь проект лицензируется под лицензией Apache 2.0
+  ([#16](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/16))
 
 ### Added
 
@@ -54,12 +57,12 @@
 - Добавлена поддержка Ammonite, Bloop, LSP Metals
   ([#6](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/6))
 
-- Теперь проект лицензируется под лицензией Apache 2.0
-  ([#16](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/16))
-
 - **docs:** Добавлена инструкция по профилированию приложения при помощи
   VisualVM
   ([#15](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/15))
+
+- **docs:** Добавлен CHANGELOG
+  ([#20](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/20))
 
 ### Fixed
 
@@ -116,4 +119,5 @@
 
 :seedling: Initial release.
 
+[0.3.0]: https://github.com/mixayloff-dimaaylov/logserver-spark/releases/tag/0.3.0
 [0.2.0]: https://github.com/mixayloff-dimaaylov/logserver-spark/releases/tag/0.2.0
