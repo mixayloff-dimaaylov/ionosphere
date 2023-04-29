@@ -27,6 +27,9 @@
 
 - **breaking(API):** Версия таблиц ClickHouse обновлена с 6 до 16.1
 
+- Теперь проект лицензируется под лицензией Apache 2.0
+  ([#16](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/16))
+
 ### Added
 
 - **V2:** Алгоритм расчёта ПЭС и характеристик ионосферы портирован на
@@ -54,12 +57,12 @@
 - Добавлена поддержка Ammonite, Bloop, LSP Metals
   ([#6](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/6))
 
-- Теперь проект лицензируется под лицензией Apache 2.0
-  ([#16](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/16))
-
 - **docs:** Добавлена инструкция по профилированию приложения при помощи
   VisualVM
   ([#15](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/15))
+
+- **docs:** Добавлен CHANGELOG
+  ([#20](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/20))
 
 ### Fixed
 
