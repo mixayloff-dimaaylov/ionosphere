@@ -22,7 +22,7 @@ COPY . .
 RUN sbt projectAssembly/assembly
 
 FROM bde2020/spark-base:3.3.0-hadoop3.3 AS install
-COPY --from=build /usr/local/src/spark/assembly/target/scala-2.12/novatel-streaming-assembly-*.jar /spark/jars/
+COPY --from=build /usr/local/src/spark/assembly/target/scala-2.12/novatel-streaming-assembly-0.3.0.jar /spark/jars/
 COPY ./bin/avro/ /spark/avro-schemas/
 
 FROM install AS spark-TecCalculationV2
@@ -43,6 +43,6 @@ CMD /spark/bin/spark-submit \
     --conf spark.yarn.max.executor.failures=8 \
     --conf spark.yarn.executor.failuresValidityInterval=1h \
     --conf spark.sql.shuffle.partitions=1 \
-    /spark/jars/novatel-streaming-assembly-1.0.jar \
+    /spark/jars/novatel-streaming-assembly-0.3.0.jar \
     $REC_LAT $REC_LON $REC_ALT \
     $KAFKA_HOST:9092 $CH_HOST:8123

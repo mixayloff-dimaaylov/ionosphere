@@ -20,7 +20,7 @@ organization := "com.infocom"
 
 name := "novatel-streaming"
 
-ThisBuild / version := "1.0"
+ThisBuild / version := "0.3.0"
 
 val assemblyName = "novatel-streaming-assembly"
 
