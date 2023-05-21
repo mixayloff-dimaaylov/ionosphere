@@ -1,5 +1,22 @@
 # Change Log
 
+## _unreleased_
+
+### Changed
+
+- Теперь колонки `avgNT`, `delNT` в таблице `computed.NTDerivatives` содержат
+  вертикальный ПЭС $N_T$
+  ([#22](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/22))
+
+### Added
+
+- Добавлен расчет вертикального ПЭС $N_T$
+  ([#22](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/22))
+
+### Fixed
+
+### Removed
+
 ## [0.3.0] - 2023-04-29
 
 ### Changed
