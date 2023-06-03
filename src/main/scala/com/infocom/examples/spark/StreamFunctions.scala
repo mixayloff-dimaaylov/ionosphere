@@ -146,6 +146,8 @@ class StreamFunctions(
     Array(Math.toDegrees(lat), Math.toDegrees(lon % (2 * Math.PI)), alt)
   }
 
+  /*GeoPoint*/
+
   def satGeoPoint(xyz: DataPointSatxyz2): Long = {
     satGeoPoint(xyz.X, xyz.Y, xyz.Z)
   }
@@ -156,6 +158,18 @@ class StreamFunctions(
     GeoHash.withBitPrecision(lla(0), lla(1), 52).longValueLeft
   }
 
+  def satGeoPointStr(xyz: DataPointSatxyz2): String = {
+    satGeoPointStr(xyz.X, xyz.Y, xyz.Z)
+  }
+
+  def satGeoPointStr(X: Double, Y: Double, Z: Double): String = {
+    val lla = ecef2lla(Array(X, Y, Z))
+
+    GeoHash.withCharacterPrecision(lla(0), lla(1), 12).toBase32
+  }
+
+  /*IonPoint*/
+
   def satIonPoint(xyz: DataPointSatxyz2): Long = {
     satIonPoint(xyz.X, xyz.Y, xyz.Z)
   }
@@ -165,6 +179,17 @@ class StreamFunctions(
     val lla = ecef2lla(intersection(point, get_unit_vector(get_vector(point, receiver))))
 
     GeoHash.withBitPrecision(lla(0), lla(1), 52).longValueLeft
+  }
+
+  def satIonPointStr(xyz: DataPointSatxyz2): String = {
+    satIonPointStr(xyz.X, xyz.Y, xyz.Z)
+  }
+
+  def satIonPointStr(X: Double, Y: Double, Z: Double): String = {
+    val point = Array(X, Y, Z)
+    val lla = ecef2lla(intersection(point, get_unit_vector(get_vector(point, receiver))))
+
+    GeoHash.withCharacterPrecision(lla(0), lla(1), 12).toBase32
   }
 
   def satElevation(xyz: DataPointSatxyz2): Double = {
