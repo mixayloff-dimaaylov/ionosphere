@@ -4,6 +4,10 @@
 
 ### Changed
 
+- Добавлены колонки `geopointStr`, `ionpointStr` со строковым GeoHash в таблице
+  `rawdata.satxyz2` для работы плагина Grafana GeoMap
+  ([#23](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/23))
+
 - Теперь колонки `avgNT`, `delNT` в таблице `computed.NTDerivatives` содержат
   вертикальный ПЭС $N_T$
   ([#22](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/22))
