@@ -206,23 +206,20 @@ object TecCalculationV2 extends Serializable {
     /* Definitions */
     val sf = new StreamFunctions(recLat, recLon, recAlt)
 
-    def satGeoPoint: UserDefinedFunction = udf {
-      (X: Double, Y: Double, Z: Double) => {
-        sf.satGeoPoint(X, Y, Z)
-      } : Long
-    }
+    def satGeoPoint: UserDefinedFunction
+      = udf[Long, Double, Double, Double](sf.satGeoPoint _)
 
-    def satIonPoint: UserDefinedFunction = udf {
-      (X: Double, Y: Double, Z: Double) => {
-        sf.satIonPoint(X, Y, Z)
-      } : Long
-    }
+    def satGeoPointStr: UserDefinedFunction
+      = udf[String, Double, Double, Double](sf.satGeoPointStr _)
 
-    def satElevation: UserDefinedFunction = udf {
-      (X: Double, Y: Double, Z: Double) => {
-        sf.satElevation(X, Y, Z)
-      } : Double
-    }
+    def satIonPoint: UserDefinedFunction
+      = udf[Long, Double, Double, Double](sf.satIonPoint _)
+
+    def satIonPointStr: UserDefinedFunction
+      = udf[String, Double, Double, Double](sf.satIonPointStr _)
+
+    def satElevation: UserDefinedFunction
+      = udf[Double, Double, Double, Double](sf.satElevation _)
 
     val kafkaServerAddress = args(3)
     val clickHouseServerAddress = args(4)
@@ -357,7 +354,9 @@ object TecCalculationV2 extends Serializable {
         .select(
           $"point.Timestamp".as("time"),
           satGeoPoint($"point.X", $"point.Y", $"point.Z").as("geopoint"),
+          satGeoPointStr($"point.X", $"point.Y", $"point.Z").as("geopointStr"),
           satIonPoint($"point.X", $"point.Y", $"point.Z").as("ionpoint"),
+          satIonPointStr($"point.X", $"point.Y", $"point.Z").as("ionpointStr"),
           satElevation($"point.X", $"point.Y", $"point.Z").as("elevation"),
           $"point.Satellite".as("sat"),
           $"point.NavigationSystem".as("system"),
