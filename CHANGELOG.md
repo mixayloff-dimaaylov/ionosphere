@@ -19,6 +19,9 @@
 
 ### Fixed
 
+- Исправлен расчет параметра Райса $\\gamma$
+  ([#24](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/24))
+
 ### Removed
 
 ## [0.3.0] - 2023-04-29
