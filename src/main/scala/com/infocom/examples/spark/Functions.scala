@@ -176,6 +176,30 @@ object Functions extends Serializable {
   }
 
   /**
+   * Расчет полосы дисперсионности
+   *
+   */
+  def Fd: UserDefinedFunction = udf {
+    (avgNT: Double, f0: Double) => {
+      math.sqrt((C * math.pow(f0, 3)) / ((80.8 * math.Pi) * avgNT * 1e16))
+    }
+  }
+
+  /**
+   * Расчет полосы когерентности
+   *
+   */
+  def Fk: UserDefinedFunction = udf {
+    (sigPhi: Double, f0: Double) => {
+      val Zm = 300000
+      val l_s = 200
+      (f0 /
+        (sigPhi * math.sqrt(2 + ((4 * math.pow(Zm, 2) * (C * C))
+          / ((math.Pi * math.Pi * math.pow(l_s, 4)) * (f0 * f0))))))
+    }
+  }
+
+  /**
    * Расчет автокорреляционной функции (АКФ) флуктуаций ПЭС
    *
    * @param seq последовательность delNT

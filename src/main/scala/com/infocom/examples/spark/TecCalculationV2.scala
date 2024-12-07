@@ -471,13 +471,16 @@ object TecCalculationV2 extends Serializable {
           $"sigcomb",
           first($"f1").as("f1"),
           first($"f2").as("f2"),
-          stddev_pop($"delNT").as("sigNT"))
+          stddev_pop($"delNT").as("sigNT"),
+          avg($"avgNT").as("avgNT"))
         .withColumn("sigPhi", sigPhi($"sigNT", $"f1"))
         .withColumn("gamma", gamma($"sigPhi"))
+        .withColumn("Fd", Fd($"avgNT", $"f1"))
+        .withColumn("Fk", Fk($"sigPhi", $"f1"))
         .withColumn("Fc", fc($"sigPhi", $"f1"))
         .withColumn("Pc", pc($"sigPhi"))
         .select("time", "sat", "sigcomb", "f1", "f2",
-                "sigNT", "sigPhi", "gamma", "Fc", "Pc")
+                "sigNT", "sigPhi", "gamma", "Fd", "Fk", "Fc", "Pc")
 
     jdbcSink(xz1, "computed.xz1").start()
 
