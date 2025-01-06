@@ -99,7 +99,8 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-sql" % sparkVersion,
   "org.apache.spark" %% "spark-yarn" % sparkVersion,
   "org.apache.spark" %% "spark-mllib" % sparkVersion,
-  "org.apache.spark" %% "spark-streaming" % sparkVersion
+  "org.apache.spark" %% "spark-streaming" % sparkVersion,
+  "org.scalanlp" %% "breeze" % "2.1.0"
 ) ++ assemblyDependencies(assemblyDependenciesScope)
 
 //Trick to make Intellij/IDEA happy
