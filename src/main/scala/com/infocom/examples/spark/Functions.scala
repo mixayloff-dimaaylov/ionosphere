@@ -150,7 +150,7 @@ object Functions extends Serializable {
    */
   def gamma: UserDefinedFunction = udf {
     (sigPhi: Double) => {
-      1 / math.exp(math.pow(sigPhi, 2) - 1)
+      1 / (math.exp(math.pow(sigPhi, 2)) - 1)
     }
   }
 
