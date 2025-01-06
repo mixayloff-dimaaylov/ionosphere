@@ -41,6 +41,8 @@ private case class Raw (
   adr2: Double,
   psr1: Double,
   psr2: Double,
+  cno1: Double,
+  cno2: Double,
   f1: Double,
   f2: Double,
   glofreq: Integer,
@@ -56,6 +58,8 @@ private case class RawDNT (
   adr2: Double,
   psr1: Double,
   psr2: Double,
+  cno1: Double,
+  cno2: Double,
   f1: Double,
   f2: Double,
   glofreq: Integer,
@@ -69,6 +73,8 @@ private case class RangeNT (
   sigcomb: String,
   f1: Double,
   f2: Double,
+  cno1: Double,
+  cno2: Double,
   nt: Double,
   adrNt: Double,
   psrNt: Double)
@@ -80,6 +86,8 @@ private case class RangeDerNT (
   sigcomb: String,
   f1: Double,
   f2: Double,
+  cno1: Double,
+  cno2: Double,
   avgNt: Double,
   delNt: Double)
     extends Serializable
@@ -121,8 +129,8 @@ object TecCalculationV2 extends Serializable {
 
     // Flatten Objects
     var res = input.toSeq.sortWith(_.time < _.time).map({
-      case RangeNT(time, sat, sigcomb, f1, f2, nt, adrNt, psrNt) =>
-        RangeDerNT(time, sat, sigcomb, f1, f2, avgF(nt), delF(nt))
+      case RangeNT(time, sat, sigcomb, f1, f2, cno1, cno2, nt, adrNt, psrNt) =>
+        RangeDerNT(time, sat, sigcomb, f1, f2, cno1, cno2, avgF(nt), delF(nt))
     })
 
     // Forget last timespan and disruptions
@@ -168,9 +176,9 @@ object TecCalculationV2 extends Serializable {
     // Flatten Objects
     val res = input.toSeq.sortWith(_.time < _.time).map({
       case Raw(time, sat, system, adr1, adr2, psr1, psr2,
-               f1, f2, glofreq, sigcomb, k) =>
+               cno1, cno2, f1, f2, glofreq, sigcomb, k) =>
         RawDNT(time, sat, system, adr1, adr2, psr1, psr2,
-               f1, f2, glofreq, sigcomb, dntE(k, time))
+               cno1, cno2, f1, f2, glofreq, sigcomb, dntE(k, time))
     })
 
     state.update(dntE)
@@ -396,6 +404,8 @@ object TecCalculationV2 extends Serializable {
           $"c2.adr".as("adr2"),
           $"c1.psr".as("psr1"),
           $"c2.psr".as("psr2"),
+          $"c1.cno".as("cno1"),
+          $"c2.cno".as("cno2"),
           f($"c1.system", $"c1.freq", $"c1.glofreq").as("f1"),
           f($"c2.system", $"c2.freq", $"c2.glofreq").as("f2"),
           $"c1.glofreq".as("glofreq"), //?
@@ -414,9 +424,11 @@ object TecCalculationV2 extends Serializable {
         .withColumn("adrNt", rawNt($"adr1", $"adr2", $"f1", $"f2", lit("0")))
         .withColumn("psrNt", psrNt($"psr1", $"psr2", $"f1", $"f2", lit("0")))
         .withColumn("nt", rawNt($"adr1", $"adr2", $"f1", $"f2", $"DNT"))
-        .select("time", "sat", "sigcomb", "f1", "f2", "nt", "adrNt", "psrNt")
+        .select("time", "sat", "sigcomb", "f1", "f2", "cno1", "cno2", "nt", "adrNt", "psrNt")
 
-    jdbcSink(rangeNT, "computed.NT").start()
+    jdbcSink(
+      rangeNT
+        .select("time", "sat", "sigcomb", "f1", "f2", "nt", "adrNt", "psrNt"), "computed.NT").start()
 
     // Derivatives calculation
 
@@ -429,7 +441,7 @@ object TecCalculationV2 extends Serializable {
       rangeGrouped
         .flatMapGroupsWithState(
           OutputMode.Append, GroupStateTimeout.ProcessingTimeTimeout())(digitalFilter)
-        .select("time", "sat", "sigcomb", "f1", "f2", "avgNT", "delNT")
+        .select("time", "sat", "sigcomb", "f1", "f2", "cno1", "cno2", "avgNT", "delNT")
 
     val derivativesNTuncurved =
       satxyz2Timestamped
@@ -472,15 +484,17 @@ object TecCalculationV2 extends Serializable {
           first($"f1").as("f1"),
           first($"f2").as("f2"),
           stddev_pop($"delNT").as("sigNT"),
-          avg($"avgNT").as("avgNT"))
+          avg($"avgNT").as("avgNT"),
+          avg($"cno1").as("cno1"))
         .withColumn("sigPhi", sigPhi($"sigNT", $"f1"))
         .withColumn("gamma", gamma($"sigPhi"))
         .withColumn("Fd", Fd($"avgNT", $"f1"))
         .withColumn("Fk", Fk($"sigPhi", $"f1"))
         .withColumn("Fc", fc($"sigPhi", $"f1"))
         .withColumn("Pc", pc($"sigPhi"))
+        .withColumn("Perror", Perror($"cno1", $"gamma", $"Fd", $"Fk"))
         .select("time", "sat", "sigcomb", "f1", "f2",
-                "sigNT", "sigPhi", "gamma", "Fd", "Fk", "Fc", "Pc")
+                "sigNT", "sigPhi", "gamma", "Fd", "Fk", "Fc", "Pc", "Perror")
 
     jdbcSink(xz1, "computed.xz1").start()
 

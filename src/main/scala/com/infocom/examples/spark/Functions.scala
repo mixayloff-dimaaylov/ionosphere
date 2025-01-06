@@ -18,7 +18,10 @@ package com.infocom.examples.spark
 
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions._
+import breeze.integrate._
+import breeze.numerics._
 import scala.math
+import scala.math.{Pi, sqrt}
 
 object Functions extends Serializable {
   val LARGE_WINDOW_SIZE = 30000L
@@ -248,6 +251,70 @@ object Functions extends Serializable {
   def errorS4: UserDefinedFunction = udf {
     (s4: Double, cno: Double) =>
       math.pow((2.0 / math.pow(s4, 2)) / (cno + (2 / math.pow(s4, 2))), 1 / math.pow(s4, 2)) / 2
+  }
+
+  /*
+   * Функции расчета вероятности ошибки
+   */
+  def fresnel_C(z: Double): Double = {
+    trapezoid((t) => math.cos(Pi * t * t / 2), 0, z, 1000)
+  }
+
+  def eta_m(_T_S: Double, _F_K: Double): Double = {
+    val _v = 1.0 / (_T_S * _F_K)
+    val _t = Pi * _T_S * _F_K
+
+    (1.0 / (2 * Pi * Pi) * (_v * _v)
+        * erf(_t)
+      - 1.0 / (Pi * sqrt(Pi)) * _v * math.exp(-1.0 * (_t * _t)))
+  }
+
+  def eta_d(_F_0: Double, _F_d: Double): Double = {
+    val _v = (_F_0 / _F_d)
+    val _C_2 = fresnel_C(_v)
+    (Pi * (_C_2 * _C_2)) / (2.0 * _v)
+  }
+
+  def eta_ch(_F_0: Double, _F_k: Double): Double = {
+    val _v = Pi * _F_k / _F_0
+
+    ((1.0 + (1 / 2 * Pi * Pi) * math.pow(_F_0 / _F_k, 2))
+       * erf(_v)
+       - 1.0 / (Pi * sqrt(Pi)) * (_F_0 / _F_k)
+       * (2.0 - math.exp(-(_v * _v))))
+  }
+
+  def P_err(_h2s: Double, _gamma2: Double, _eta_ms: Double, _eta_chs: Double, _eta_ds: Double): Double = {
+    val _g = _gamma2
+    val _g_1 = _g + 1
+    val _p = (_w: Double) => (_g_1) / (_w + 2.0 * _g_1) * math.exp(-1.0 * _g * _w / (_w + 2.0 * _g_1))
+
+    val W111 = _h2s * _eta_ds * _eta_chs
+    val W110 = (_h2s * _eta_ds * _eta_chs - _h2s * _eta_ds * _eta_ms) / (1.0 + _h2s * _eta_ds * _eta_ms)
+    val W011 = W110
+    val W010 = (_h2s * _eta_ds * _eta_chs - 2 * _h2s * _eta_ds * _eta_ms) / (1.0 + 2.0 * _h2s * _eta_ds * _eta_ms)
+
+    val P111 = _p(W111)
+    val P110 = _p(W110)
+    val P011 = _p(W011)
+    val P010 = _p(W010)
+
+    0.25 * (P111 + P110 + P011 + P010)
+  }
+
+  def Perror: UserDefinedFunction = udf {
+    (h2: Double, gamma2: Double, F_d: Double, F_k: Double) => {
+      val R_T = 2.7 * 1e3
+      val T_S = 1.0 / R_T
+      val B_S = 1.0
+      val F_0 = B_S / T_S
+
+      P_err(h2, gamma2,
+        eta_m(T_S, F_k),
+        eta_ch(F_0, F_k),
+        // TODO: fix eta_d
+        1.0 /* eta_d(F_0, F_d) */)
+    }
   }
 }
 
