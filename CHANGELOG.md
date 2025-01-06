@@ -14,8 +14,13 @@
 
 ### Added
 
+- Добавлен расчет полосы дисперсионности $F_d$, полосы когерентности $F_k$,
+  вероятности ошибки $P_{error}$
+  ([#25](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/25))
+
 - Добавлен расчет вертикального ПЭС $N_T$
-  ([#22](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/22))
+  ([#22](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/22),
+   [#25](https://github.com/mixayloff-dimaaylov/logserver-spark/pull/25))
 
 ### Fixed
 
